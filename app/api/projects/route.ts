@@ -4,6 +4,15 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 const PROJECT_STATUSES = ['running', 'paused', 'completed']
 
+function isMissingProjectStatusColumn(error: unknown) {
+  if (typeof error !== 'object' || !error) return false
+
+  const code = 'code' in error ? String((error as { code: unknown }).code) : ''
+  const message = 'message' in error ? String((error as { message: unknown }).message) : ''
+
+  return code === 'PGRST204' && message.includes("'status' column") && message.includes("'projects'")
+}
+
 function getErrorPayload(error: unknown) {
   if (typeof error === 'object' && error && 'message' in error) {
     return {
@@ -58,40 +67,39 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
     }
 
-    let query = supabase
-      .from('projects')
-      .select(
-        optionsOnly
-          ? 'id, name'
-          : `
-            id,
-            name,
-            description,
-            status,
-            created_by,
-            created_at,
-            updated_at,
-            project_members(user_id, role)
-          `
-      )
-      .order('created_at', { ascending: false })
+    const createQuery = (includeStatus: boolean) => {
+      let query = supabase
+        .from('projects')
+        .select(
+          optionsOnly
+            ? 'id, name'
+            : `
+              id,
+              name,
+              description,
+              ${includeStatus ? 'status,' : ''}
+              created_by,
+              created_at,
+              updated_at,
+              project_members(user_id, role)
+            `
+        )
+        .order('created_at', { ascending: false })
 
-    if (currentRole !== 'admin' && !optionsOnly) {
-      const { data: memberships, error: membershipError } = await supabase
-        .from('project_members')
-        .select('project_id')
-        .eq('user_id', payload.userId)
+      if (currentRole !== 'admin' && !optionsOnly) {
+        query = query.eq('created_by', payload.userId)
+      }
 
-      if (membershipError) throw membershipError
-
-      const projectIds = (memberships || []).map((item) => item.project_id).filter(Boolean)
-      query =
-        projectIds.length > 0
-          ? query.or(`created_by.eq.${payload.userId},id.in.(${projectIds.join(',')})`)
-          : query.eq('created_by', payload.userId)
+      return query
     }
 
-    const { data: projects, error } = await query
+    let { data: projects, error } = await createQuery(true)
+
+    if (error && !optionsOnly && isMissingProjectStatusColumn(error)) {
+      const fallback = await createQuery(false)
+      projects = fallback.data?.map((project) => ({ ...project, status: 'running' })) || null
+      error = fallback.error
+    }
 
     if (error) throw error
 
@@ -132,18 +140,34 @@ export async function POST(request: NextRequest) {
     const supabase = createAdminClient()
 
     // Create project
-    const { data: project, error } = await supabase
+    const createPayload = {
+      name,
+      description,
+      status: status || 'running',
+      created_by: payload.userId,
+    }
+
+    let { data: project, error } = await supabase
       .from('projects')
-      .insert([
-        {
-          name,
-          description,
-          status: status || 'running',
-          created_by: payload.userId,
-        },
-      ])
+      .insert([createPayload])
       .select()
       .single()
+
+    if (error && isMissingProjectStatusColumn(error)) {
+      const fallbackPayload = {
+        name,
+        description,
+        created_by: payload.userId,
+      }
+      const fallback = await supabase
+        .from('projects')
+        .insert([fallbackPayload])
+        .select()
+        .single()
+
+      project = fallback.data ? { ...fallback.data, status: 'running' } : null
+      error = fallback.error
+    }
 
     if (error) {
       console.error('Create project insert failed:', error)

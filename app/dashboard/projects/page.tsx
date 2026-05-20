@@ -9,9 +9,11 @@ import {
   CheckCircle2,
   Grid3X3,
   List,
+  Loader2,
   Plus,
   SlidersHorizontal,
 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface Project {
   id: string;
@@ -69,9 +71,12 @@ function getDerivedProject(project: Project) {
 
 export default function ProjectsPage() {
   const { user, loading: authLoading } = useAuth();
+  const { toast } = useToast();
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [updatingProjectId, setUpdatingProjectId] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | ProjectStatus>('all');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -95,9 +100,22 @@ export default function ProjectsPage() {
     try {
       const response = await fetch('/api/projects');
       const data = await response.json();
+      if (!response.ok) {
+        toast({
+          title: 'Không tải được dự án',
+          description: data?.message || 'Vui lòng thử lại.',
+          variant: 'destructive',
+        });
+        return;
+      }
       setProjects(data.projects || []);
     } catch (error) {
       console.error('Error fetching projects:', error);
+      toast({
+        title: 'Không tải được dự án',
+        description: 'Có lỗi khi kết nối server.',
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
@@ -105,25 +123,47 @@ export default function ProjectsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setCreatingProject(true);
     try {
       const response = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
+      const data = await response.json().catch(() => null);
 
       if (response.ok) {
         fetchProjects();
         setShowCreateForm(false);
         setFormData({ name: '', description: '', status: 'running' });
+        toast({
+          title: 'Đã tạo dự án',
+          description: formData.name,
+        });
+        return;
       }
+
+      toast({
+        title: 'Không tạo được dự án',
+        description: data?.message || 'Vui lòng kiểm tra lại thông tin.',
+        variant: 'destructive',
+      });
     } catch (error) {
       console.error('Error creating project:', error);
+      toast({
+        title: 'Không tạo được dự án',
+        description: 'Có lỗi khi kết nối server.',
+        variant: 'destructive',
+      });
+    } finally {
+      setCreatingProject(false);
     }
   };
 
   const handleStatusChange = async (projectId: string, status: ProjectStatus) => {
     const previousProjects = projects;
+    const projectName = projects.find((project) => project.id === projectId)?.name || 'Dự án';
+    setUpdatingProjectId(projectId);
     setProjects((current) =>
       current.map((project) => (project.id === projectId ? { ...project, status } : project))
     );
@@ -140,6 +180,11 @@ export default function ProjectsPage() {
       if (!response.ok) {
         setProjects(previousProjects);
         console.error('Error updating project status:', data?.message || response.statusText);
+        toast({
+          title: 'Không cập nhật được trạng thái',
+          description: data?.message || 'Vui lòng thử lại.',
+          variant: 'destructive',
+        });
         return;
       }
 
@@ -148,9 +193,20 @@ export default function ProjectsPage() {
           current.map((project) => (project.id === data.project.id ? data.project : project))
         );
       }
+      toast({
+        title: 'Đã cập nhật trạng thái',
+        description: projectName,
+      });
     } catch (error) {
       setProjects(previousProjects);
       console.error('Error updating project status:', error);
+      toast({
+        title: 'Không cập nhật được trạng thái',
+        description: 'Có lỗi khi kết nối server.',
+        variant: 'destructive',
+      });
+    } finally {
+      setUpdatingProjectId(null);
     }
   };
 
@@ -230,12 +286,18 @@ export default function ProjectsPage() {
               <button
                 type="button"
                 onClick={() => setShowCreateForm(false)}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50"
+                disabled={creatingProject}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Hủy
               </button>
-              <button type="submit" className="rounded-lg bg-[#063b63] px-4 py-2 text-white">
-                Tạo
+              <button
+                type="submit"
+                disabled={creatingProject}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#063b63] px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {creatingProject && <Loader2 className="h-4 w-4 animate-spin" />}
+                {creatingProject ? 'Đang tạo...' : 'Tạo'}
               </button>
             </div>
           </form>
@@ -304,10 +366,11 @@ export default function ProjectsPage() {
                       <select
                         aria-label={`Trạng thái dự án ${project.name}`}
                         value={project.status}
+                        disabled={updatingProjectId === project.id}
                         onChange={(event) =>
                           handleStatusChange(project.id, event.target.value as ProjectStatus)
                         }
-                        className="cursor-pointer appearance-none bg-transparent pr-6 font-semibold outline-none"
+                        className="cursor-pointer appearance-none bg-transparent pr-6 font-semibold outline-none disabled:cursor-wait disabled:opacity-70"
                       >
                         {projectStatusOptions.map((option) => (
                           <option key={option.value} value={option.value}>
@@ -317,6 +380,9 @@ export default function ProjectsPage() {
                       </select>
                       <ChevronDown className="pointer-events-none absolute right-0 h-4 w-4" />
                     </span>
+                    {updatingProjectId === project.id && (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    )}
                   </label>
                 </div>
 

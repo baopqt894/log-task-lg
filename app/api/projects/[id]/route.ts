@@ -4,6 +4,15 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 const PROJECT_STATUSES = ['running', 'paused', 'completed']
 
+function isMissingProjectStatusColumn(error: unknown) {
+  if (typeof error !== 'object' || !error) return false
+
+  const code = 'code' in error ? String((error as { code: unknown }).code) : ''
+  const message = 'message' in error ? String((error as { message: unknown }).message) : ''
+
+  return code === 'PGRST204' && message.includes("'status' column") && message.includes("'projects'")
+}
+
 function getErrorPayload(error: unknown) {
   if (typeof error === 'object' && error && 'message' in error) {
     return {
@@ -74,23 +83,61 @@ export async function PATCH(
     update.updated_at = new Date().toISOString()
 
     const supabase = createAdminClient()
-    const { data: project, error } = await supabase
+    const selectProject = (includeStatus: boolean) => `
+      id,
+      name,
+      description,
+      ${includeStatus ? 'status,' : ''}
+      created_by,
+      created_at,
+      updated_at,
+      project_members(user_id, role)
+    `
+
+    let { data: project, error } = await supabase
       .from('projects')
       .update(update)
       .eq('id', id)
-      .select(
-        `
-          id,
-          name,
-          description,
-          status,
-          created_by,
-          created_at,
-          updated_at,
-          project_members(user_id, role)
-        `
-      )
+      .select(selectProject(true))
       .single()
+
+    if (error && isMissingProjectStatusColumn(error)) {
+      if ('status' in update) {
+        const fallbackUpdate = { ...update }
+        delete fallbackUpdate.status
+
+        if (Object.keys(fallbackUpdate).length === 1 && 'updated_at' in fallbackUpdate) {
+          return NextResponse.json(
+            {
+              message:
+                'Database chưa có cột projects.status. Hãy chạy SQL migration rồi thử lại.',
+              code: 'MISSING_PROJECT_STATUS_COLUMN',
+            },
+            { status: 409 }
+          )
+        }
+
+        const fallback = await supabase
+          .from('projects')
+          .update(fallbackUpdate)
+          .eq('id', id)
+          .select(selectProject(false))
+          .single()
+
+        project = fallback.data ? { ...fallback.data, status: 'running' } : null
+        error = fallback.error
+      } else {
+        const fallback = await supabase
+          .from('projects')
+          .update(update)
+          .eq('id', id)
+          .select(selectProject(false))
+          .single()
+
+        project = fallback.data ? { ...fallback.data, status: 'running' } : null
+        error = fallback.error
+      }
+    }
 
     if (error) {
       console.error('Update project failed:', { id, update, error })
