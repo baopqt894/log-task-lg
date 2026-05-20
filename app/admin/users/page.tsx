@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Search } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, X, Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface User {
   id: string;
@@ -15,6 +16,7 @@ interface User {
 }
 
 export default function AdminUsersPage() {
+  const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -23,10 +25,17 @@ export default function AdminUsersPage() {
   const [roles, setRoles] = useState<any[]>([]);
   const [createError, setCreateError] = useState('');
   const [savingKpiUserId, setSavingKpiUserId] = useState<string | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     fullName: '',
     password: '',
+    roleId: '',
+    monthlyWlKpi: '',
+    isActive: true,
+  });
+  const [editFormData, setEditFormData] = useState({
+    fullName: '',
     roleId: '',
     monthlyWlKpi: '',
     isActive: true,
@@ -76,11 +85,81 @@ export default function AdminUsersPage() {
   const handleDelete = async (userId: string) => {
     if (confirm('Bạn có chắc chắn muốn xóa người dùng này?')) {
       try {
-        await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' });
+        const response = await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' });
+        if (!response.ok) {
+          const data = await response.json().catch(() => null);
+          toast({
+            title: 'Không xóa được user',
+            description: data?.message || 'Vui lòng thử lại.',
+            variant: 'destructive',
+          });
+          return;
+        }
         fetchUsers();
+        toast({ title: 'Đã xóa user' });
       } catch (error) {
         console.error('Error deleting user:', error);
+        toast({
+          title: 'Không xóa được user',
+          description: 'Có lỗi khi kết nối server.',
+          variant: 'destructive',
+        });
       }
+    }
+  };
+
+  const openEditUser = (user: User) => {
+    setEditingUser(user);
+    setEditFormData({
+      fullName: user.full_name || '',
+      roleId: user.role_id || roles.find((role: any) => role.name === user.role?.name)?.id || '',
+      monthlyWlKpi: String(user.monthly_wl_kpi || 0),
+      isActive: Boolean(user.is_active),
+    });
+  };
+
+  const handleProfileUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+
+    setSavingProfile(true);
+    try {
+      const response = await fetch(`/api/admin/users/${editingUser.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName: editFormData.fullName,
+          roleId: editFormData.roleId,
+          monthlyWlKpi: editFormData.monthlyWlKpi,
+          isActive: editFormData.isActive,
+        }),
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        toast({
+          title: 'Không lưu được profile',
+          description: data?.message || 'Vui lòng kiểm tra lại thông tin.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      setEditingUser(null);
+      await fetchUsers();
+      toast({
+        title: 'Đã cập nhật profile',
+        description: editingUser.email,
+      });
+    } catch (error) {
+      console.error('Error updating user profile:', error);
+      toast({
+        title: 'Không lưu được profile',
+        description: 'Có lỗi khi kết nối server.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingProfile(false);
     }
   };
 
@@ -397,7 +476,7 @@ export default function AdminUsersPage() {
                     <td className="px-6 py-4 text-sm">
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => setEditingUser(user)}
+                          onClick={() => openEditUser(user)}
                           className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                         >
                           <Edit2 className="w-4 h-4" />
@@ -419,6 +498,124 @@ export default function AdminUsersPage() {
                 <p className="text-slate-600">Không tìm thấy người dùng</p>
               </div>
             )}
+          </div>
+        )}
+        {editingUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[1px]">
+            <div className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white shadow-xl">
+              <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-900">Chỉnh Sửa Profile</h2>
+                  <p className="mt-1 text-sm text-slate-600">{editingUser.email}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingUser(null)}
+                  className="text-slate-400 transition-colors hover:text-slate-600"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <form onSubmit={handleProfileUpdate} className="space-y-5 p-6">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-900">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={editingUser.email}
+                      disabled
+                      className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-900">
+                      Họ và tên
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editFormData.fullName}
+                      onChange={(event) =>
+                        setEditFormData({ ...editFormData, fullName: event.target.value })
+                      }
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-900">
+                      Vai trò
+                    </label>
+                    <select
+                      required
+                      value={editFormData.roleId}
+                      onChange={(event) =>
+                        setEditFormData({ ...editFormData, roleId: event.target.value })
+                      }
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    >
+                      <option value="">Chọn vai trò</option>
+                      {roles.map((role) => (
+                        <option key={role.id} value={role.id}>
+                          {role.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-900">
+                      KPI WL/tháng
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={editFormData.monthlyWlKpi}
+                      onChange={(event) =>
+                        setEditFormData({
+                          ...editFormData,
+                          monthlyWlKpi: event.target.value,
+                        })
+                      }
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+                </div>
+
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={editFormData.isActive}
+                    onChange={(event) =>
+                      setEditFormData({ ...editFormData, isActive: event.target.checked })
+                    }
+                    className="h-4 w-4"
+                  />
+                  Hoạt động
+                </label>
+
+                <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setEditingUser(null)}
+                    disabled={savingProfile}
+                    className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingProfile}
+                    className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {savingProfile && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {savingProfile ? 'Đang lưu...' : 'Lưu thay đổi'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
     </div>

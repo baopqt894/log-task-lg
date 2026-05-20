@@ -17,6 +17,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
+import { useToast } from '@/hooks/use-toast';
 
 type TaskStatus =
   | 'pending'
@@ -110,14 +111,37 @@ function getUserInitials(user: UserOption) {
   return source.slice(0, 2).toUpperCase() || 'U';
 }
 
+function getCurrentMonthBoardName() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  return `Tháng ${month}/${now.getFullYear()}`;
+}
+
+function getBoardMonthValue(board: Board) {
+  const match = board.name.match(/Tháng\s+(\d{2})\/(\d{4})/i);
+  if (!match) return 0;
+
+  const [, month, year] = match;
+  return Number(year) * 100 + Number(month);
+}
+
+function getDefaultBoardId(boards: Board[]) {
+  const currentMonthBoard = boards.find((board) => board.name === getCurrentMonthBoardName());
+  if (currentMonthBoard) return currentMonthBoard.id;
+
+  return [...boards].sort((a, b) => getBoardMonthValue(b) - getBoardMonthValue(a))[0]?.id || '';
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
+  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
   const [projects, setProjects] = useState<any[]>([]);
   const [boards, setBoards] = useState<Board[]>([]);
   const [boardsLoaded, setBoardsLoaded] = useState(false);
@@ -133,6 +157,7 @@ export default function DashboardPage() {
   const [savingBoardSettings, setSavingBoardSettings] = useState(false);
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<BoardStatus | null>(null);
+  const [deletingTask, setDeletingTask] = useState(false);
   const boardDropdownRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -203,7 +228,13 @@ export default function DashboardPage() {
       const data = await response.json();
       const nextBoards = data.boards || [];
       setBoards(nextBoards);
-      setSelectedBoardId((current) => current || nextBoards[0]?.id || '');
+      setSelectedBoardId((current) => {
+        if (current && nextBoards.some((board: Board) => board.id === current)) {
+          return current;
+        }
+
+        return getDefaultBoardId(nextBoards);
+      });
     } catch (error) {
       console.error('Error fetching boards:', error);
     } finally {
@@ -364,27 +395,48 @@ export default function DashboardPage() {
     }
   };
 
-  const handleDeleteTask = async (task: Task) => {
+  const requestDeleteTask = (task: Task) => {
     if (!canEditTask(task)) return;
-    const confirmed = window.confirm(`Xóa task "${task.title}"?`);
-    if (!confirmed) return;
-
     setTaskMenu(null);
+    setTaskToDelete(task);
+  };
+
+  const handleDeleteTask = async () => {
+    if (!taskToDelete || !canEditTask(taskToDelete)) return;
+
+    setDeletingTask(true);
     try {
-      const response = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' });
+      const response = await fetch(`/api/tasks/${taskToDelete.id}`, { method: 'DELETE' });
 
       if (!response.ok) {
         const data = await response.json().catch(() => null);
         console.error('Error deleting task:', data?.message || response.statusText);
+        toast({
+          variant: 'destructive',
+          title: 'Không thể xoá task',
+          description: data?.message || 'Vui lòng thử lại sau.',
+        });
         return;
       }
 
-      if (viewingTask?.id === task.id) {
+      if (viewingTask?.id === taskToDelete.id) {
         setViewingTask(null);
       }
+      toast({
+        title: 'Đã xoá task',
+        description: `"${taskToDelete.title}" đã được xoá khỏi bảng.`,
+      });
+      setTaskToDelete(null);
       fetchTasks();
     } catch (error) {
       console.error('Error deleting task:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Không thể xoá task',
+        description: 'Vui lòng thử lại sau.',
+      });
+    } finally {
+      setDeletingTask(false);
     }
   };
 
@@ -798,8 +850,52 @@ export default function DashboardPage() {
               label="Delete"
               danger
               disabled={!canEditTask(taskMenu.task)}
-              onClick={() => handleDeleteTask(taskMenu.task)}
+              onClick={() => requestDeleteTask(taskMenu.task)}
             />
+          </div>
+        </div>
+      )}
+
+      {taskToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[1px]">
+          <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
+            <div className="flex items-start gap-4 border-b border-slate-200 p-6">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-lg font-bold text-slate-950">Xoá task này?</h2>
+                <p className="mt-1 text-sm leading-6 text-slate-600">
+                  Task <span className="font-semibold text-slate-900">"{taskToDelete.title}"</span> sẽ bị xoá khỏi bảng công việc.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTaskToDelete(null)}
+                disabled={deletingTask}
+                className="text-slate-400 transition-colors hover:text-slate-600 disabled:opacity-50"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex justify-end gap-3 p-5">
+              <button
+                type="button"
+                onClick={() => setTaskToDelete(null)}
+                disabled={deletingTask}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteTask}
+                disabled={deletingTask}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+              >
+                {deletingTask ? 'Đang xoá...' : 'Xoá task'}
+              </button>
+            </div>
           </div>
         </div>
       )}

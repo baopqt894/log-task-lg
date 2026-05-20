@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
+import { useToast } from '@/hooks/use-toast';
 
 interface CreateTaskModalProps {
   projects: any[];
@@ -31,6 +32,7 @@ export function CreateTaskModal({
   onSuccess,
 }: CreateTaskModalProps) {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const isEditing = Boolean(task);
@@ -78,6 +80,12 @@ export function CreateTaskModal({
       });
 
       if (response.ok) {
+        toast({
+          title: isEditing ? 'Đã cập nhật task' : 'Đã tạo task',
+          description: isEditing
+            ? 'Thông tin task đã được lưu lại.'
+            : 'Task mới đã được thêm vào bảng công việc.',
+        });
         onSuccess();
         return;
       }

@@ -43,9 +43,13 @@ export async function PATCH(
     const update: Record<string, unknown> = {}
 
     if ('full_name' in body) update.full_name = body.full_name
+    if ('fullName' in body) update.full_name = body.fullName
     if ('role_id' in body) update.role_id = body.role_id
+    if ('roleId' in body) update.role_id = body.roleId
     if ('is_active' in body) update.is_active = Boolean(body.is_active)
+    if ('isActive' in body) update.is_active = Boolean(body.isActive)
     if ('monthly_wl_kpi' in body) update.monthly_wl_kpi = Number(body.monthly_wl_kpi || 0)
+    if ('monthlyWlKpi' in body) update.monthly_wl_kpi = Number(body.monthlyWlKpi || 0)
 
     if (Object.keys(update).length === 0) {
       return NextResponse.json({ message: 'No valid fields to update' }, { status: 400 })
