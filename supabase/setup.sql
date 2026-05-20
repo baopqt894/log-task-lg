@@ -72,7 +72,7 @@ create table if not exists public.tasks (
   assigned_to uuid references public.users(id) on delete set null,
   status text not null default 'not_started',
   task_type text,
-  quantity integer,
+  quantity numeric,
   estimated_hours integer,
   due_date date,
   created_by uuid references public.users(id) on delete set null,
@@ -82,6 +82,9 @@ create table if not exists public.tasks (
 
 alter table public.tasks
   add column if not exists board_id uuid references public.boards(id) on delete set null;
+
+alter table public.tasks
+  alter column quantity type numeric using quantity::numeric;
 
 alter table public.tasks replica identity full;
 

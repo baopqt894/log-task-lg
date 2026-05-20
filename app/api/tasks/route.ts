@@ -181,6 +181,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Invalid task status' }, { status: 400 })
     }
 
+    const normalizedQuantity =
+      quantity === null || quantity === undefined || quantity === '' ? null : Number(quantity)
+
+    if (normalizedQuantity !== null && !Number.isFinite(normalizedQuantity)) {
+      return NextResponse.json({ message: 'Quantity must be a valid number' }, { status: 400 })
+    }
+
     const supabase = createAdminClient()
 
     if (currentRole !== 'admin') {
@@ -201,7 +208,7 @@ export async function POST(request: NextRequest) {
           assigned_to: currentRole === 'admin' ? assignedTo || payload.userId : payload.userId,
           status: status || 'pending',
           task_type: taskType,
-          quantity,
+          quantity: normalizedQuantity,
           estimated_hours: estimatedHours,
           due_date: dueDate,
           created_by: payload.userId,

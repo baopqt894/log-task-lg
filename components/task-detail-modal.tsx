@@ -68,6 +68,12 @@ function formatDateTime(value?: string | null) {
   return new Date(value).toLocaleString('vi-VN');
 }
 
+function formatWl(value: number) {
+  return Number(value || 0).toLocaleString('vi-VN', {
+    maximumFractionDigits: 2,
+  });
+}
+
 export function TaskDetailModal({ task, canEdit, onClose, onEdit }: TaskDetailModalProps) {
   const creatorName = task.creator?.full_name || task.creator?.email || '-';
   const assigneeName = task.assignee?.full_name || task.assignee?.email || '-';
@@ -108,7 +114,7 @@ export function TaskDetailModal({ task, canEdit, onClose, onEdit }: TaskDetailMo
             <DetailItem icon={<User className="h-4 w-4" />} label="Người tạo" value={creatorName} />
             <DetailItem icon={<User className="h-4 w-4" />} label="Thành viên" value={assigneeName} />
             <DetailItem icon={<FolderOpen className="h-4 w-4" />} label="Dự án" value={task.project?.name || '-'} />
-            <DetailItem icon={<Hash className="h-4 w-4" />} label="Số lượng" value={`${Number(task.quantity || 0)} WL`} />
+            <DetailItem icon={<Hash className="h-4 w-4" />} label="Số lượng" value={`${formatWl(Number(task.quantity || 0))} WL`} />
             <DetailItem icon={<Calendar className="h-4 w-4" />} label="Ngày task" value={formatDate(task.due_date)} />
             <DetailItem icon={<ClipboardList className="h-4 w-4" />} label="Cập nhật" value={formatDateTime(task.updated_at || task.created_at)} />
           </div>

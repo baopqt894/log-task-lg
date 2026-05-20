@@ -58,6 +58,12 @@ function formatDateTime(value?: string) {
   return new Date(value).toLocaleString('vi-VN');
 }
 
+function formatWl(value: number) {
+  return Number(value || 0).toLocaleString('vi-VN', {
+    maximumFractionDigits: 2,
+  });
+}
+
 interface Task {
   id: string;
   title: string;
@@ -513,13 +519,13 @@ export default function DashboardPage() {
   };
 
   const requestDeleteTask = (task: Task) => {
-    if (!canEditTask(task)) return;
+    if (!canDeleteTask(task)) return;
     setTaskMenu(null);
     setTaskToDelete(task);
   };
 
   const handleDeleteTask = async () => {
-    if (!taskToDelete || !canEditTask(taskToDelete)) return;
+    if (!taskToDelete || !canDeleteTask(taskToDelete)) return;
 
     setDeletingTask(true);
     try {
@@ -571,10 +577,17 @@ export default function DashboardPage() {
     return task.created_by === user.id;
   };
 
+  const canDeleteTask = (task: Task) => {
+    if (!user) return false;
+    return user.role === 'admin' || task.created_by === user.id;
+  };
+
   const isOwnTask = (task: Task) => {
     if (!user) return false;
     return task.created_by === user.id;
   };
+
+  const isDoneStatus = (status: TaskStatus) => ['done', 'completed', 'in_review', 'release'].includes(status);
 
   const tasksByStatus = Object.fromEntries(
     statusColumns.map((column) => [
@@ -585,14 +598,12 @@ export default function DashboardPage() {
 
   const boardRawWl = tasks.reduce((sum, task) => sum + Number(task.quantity || 0), 0);
   const boardDoneWl = tasks
-    .filter((task) => ['done', 'completed', 'release'].includes(task.status))
+    .filter((task) => isDoneStatus(task.status))
     .reduce((sum, task) => sum + Number(task.quantity || 0), 0);
   const boardReleaseWl = tasks
     .filter((task) => task.status === 'release')
     .reduce((sum, task) => sum + Number(task.quantity || 0), 0);
-  const boardMemberCount = (selectedBoard?.board_members || []).filter((member) =>
-    visibleMembers.some((item) => item.id === member.user_id)
-  ).length;
+  const boardMemberCount = selectedBoard?.board_members?.length || 0;
 
   return (
     <div className="space-y-4">
@@ -784,7 +795,7 @@ export default function DashboardPage() {
               <div className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:grid-cols-3">
                 <BoardInfoStat label="User" value={`${settingsMemberIds.length}`} />
                 <BoardInfoStat label="Task" value={`${tasks.length}`} />
-                <BoardInfoStat label="Release WL" value={`${boardReleaseWl}`} />
+                <BoardInfoStat label="Release WL" value={formatWl(boardReleaseWl)} />
               </div>
 
               <div>
@@ -839,9 +850,9 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
             <BoardInfoStat label="User" value={`${boardMemberCount}`} />
             <BoardInfoStat label="Task" value={`${tasks.length}`} />
-            <BoardInfoStat label="Raw WL" value={`${boardRawWl}`} />
-            <BoardInfoStat label="Done WL" value={`${boardDoneWl}`} />
-            <BoardInfoStat label="Release WL" value={`${boardReleaseWl}`} />
+            <BoardInfoStat label="Raw WL" value={formatWl(boardRawWl)} />
+            <BoardInfoStat label="Done WL" value={formatWl(boardDoneWl)} />
+            <BoardInfoStat label="Release WL" value={formatWl(boardReleaseWl)} />
             <BoardInfoStat label="Block" value={`${tasksByStatus.block.length}`} />
           </div>
         </section>
@@ -973,7 +984,7 @@ export default function DashboardPage() {
               icon={<Trash2 className="h-4 w-4" />}
               label="Delete"
               danger
-              disabled={!canEditTask(taskMenu.task)}
+              disabled={!canDeleteTask(taskMenu.task)}
               onClick={() => requestDeleteTask(taskMenu.task)}
             />
           </div>

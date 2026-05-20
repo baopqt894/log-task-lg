@@ -46,6 +46,12 @@ interface TaskCardProps {
   onContextMenu?: (event: MouseEvent<HTMLDivElement>) => void;
 }
 
+function formatWl(value: number) {
+  return Number(value || 0).toLocaleString('vi-VN', {
+    maximumFractionDigits: 2,
+  });
+}
+
 export function TaskCard({
   task,
   onUpdate,
@@ -213,7 +219,7 @@ export function TaskCard({
         )}
 
         <div className="text-xs font-semibold text-slate-700">
-          {Number(task.quantity || 0)} WL
+          {formatWl(Number(task.quantity || 0))} WL
         </div>
       </div>
 

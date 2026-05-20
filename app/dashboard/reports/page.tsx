@@ -94,6 +94,28 @@ function sumWl(tasks: Task[]) {
   return tasks.reduce((sum, task) => sum + Number(task.quantity || 0), 0);
 }
 
+function isDoneStatus(status: string) {
+  return ['done', 'completed', 'in_review', 'release'].includes(status);
+}
+
+function formatWl(value: number) {
+  return Number(value || 0).toLocaleString('vi-VN', {
+    maximumFractionDigits: 2,
+  });
+}
+
+function getKpiPercent(value: number, target: number) {
+  return target > 0 ? Math.round((value / target) * 100) : 0;
+}
+
+function getProgressWidth(percent: number) {
+  return `${Math.min(percent, 100)}%`;
+}
+
+function getKpiTrend(percent: number, label: string) {
+  return percent > 100 ? `Vượt ${percent - 100}% ${label}` : `${percent}% ${label}`;
+}
+
 function AdminKpiReport({ tasks, users }: { tasks: Task[]; users: ReportUser[] }) {
   const monthlyTasks = getMonthlyTasks(tasks);
   const memberUsers = users.filter((item) => getRoleName(item) !== 'admin' && item.is_active !== false);
@@ -102,17 +124,17 @@ function AdminKpiReport({ tasks, users }: { tasks: Task[]; users: ReportUser[] }
   const totalTarget = memberUsers.reduce((sum, item) => sum + Number(item.monthly_wl_kpi || 0), 0);
   const rawWl = sumWl(trackedTasks);
   const doneWl = sumWl(
-    trackedTasks.filter((task) => ['done', 'completed', 'release'].includes(task.status))
+    trackedTasks.filter((task) => isDoneStatus(task.status))
   );
   const releaseWl = sumWl(trackedTasks.filter((task) => task.status === 'release'));
-  const progress = totalTarget > 0 ? Math.min(Math.round((releaseWl / totalTarget) * 100), 100) : 0;
+  const progress = getKpiPercent(releaseWl, totalTarget);
   const monthLabel = new Date().toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' });
 
   const userRows = memberUsers
     .map((item) => {
       const userTasks = monthlyTasks.filter((task) => getTaskOwnerId(task) === item.id);
       const userDoneWl = sumWl(
-        userTasks.filter((task) => ['done', 'completed', 'release'].includes(task.status))
+        userTasks.filter((task) => isDoneStatus(task.status))
       );
       const userReleaseWl = sumWl(userTasks.filter((task) => task.status === 'release'));
       const target = Number(item.monthly_wl_kpi || 0);
@@ -124,7 +146,7 @@ function AdminKpiReport({ tasks, users }: { tasks: Task[]; users: ReportUser[] }
         doneWl: userDoneWl,
         releaseWl: userReleaseWl,
         target,
-        progress: target > 0 ? Math.min(Math.round((userReleaseWl / target) * 100), 100) : 0,
+        progress: getKpiPercent(userReleaseWl, target),
       };
     })
     .sort((a, b) => b.doneWl - a.doneWl);
@@ -166,7 +188,7 @@ function AdminKpiReport({ tasks, users }: { tasks: Task[]; users: ReportUser[] }
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
         <MetricCard
           title="KPI Tổng"
-          value={`${totalTarget}`}
+          value={formatWl(totalTarget)}
           unit="WL"
           trend={`${memberUsers.length} user đang active`}
           icon={<Target className="w-6 h-6 text-[#0b4d7f]" />}
@@ -174,7 +196,7 @@ function AdminKpiReport({ tasks, users }: { tasks: Task[]; users: ReportUser[] }
         />
         <MetricCard
           title="Raw WL"
-          value={`${rawWl}`}
+          value={formatWl(rawWl)}
           unit="WL"
           trend="Tổng WL đã log"
           icon={<CalendarDays className="w-6 h-6 text-slate-600" />}
@@ -182,17 +204,17 @@ function AdminKpiReport({ tasks, users }: { tasks: Task[]; users: ReportUser[] }
         />
         <MetricCard
           title="Done WL"
-          value={`${doneWl}`}
+          value={formatWl(doneWl)}
           unit="WL"
-          trend="Bao gồm cả release"
+          trend="Bao gồm in review và release"
           icon={<CheckCircle2 className="w-6 h-6 text-emerald-600" />}
           iconClass="bg-emerald-100"
         />
         <MetricCard
           title="Release WL"
-          value={`${releaseWl}`}
+          value={formatWl(releaseWl)}
           unit="WL"
-          trend={`${progress}% KPI tổng`}
+          trend={getKpiTrend(progress, 'KPI tổng')}
           icon={<Rocket className="w-6 h-6 text-purple-700" />}
           iconClass="bg-purple-100"
         />
@@ -202,18 +224,20 @@ function AdminKpiReport({ tasks, users }: { tasks: Task[]; users: ReportUser[] }
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-xl font-bold text-slate-950">Tiến độ KPI tổng</h2>
           <span className="text-sm font-semibold text-slate-500">
-            Còn cần {Math.max(totalTarget - releaseWl, 0)} WL
+            {releaseWl > totalTarget && totalTarget > 0
+              ? `Vượt ${formatWl(releaseWl - totalTarget)} WL`
+              : `Còn cần ${formatWl(Math.max(totalTarget - releaseWl, 0))} WL`}
           </span>
         </div>
         <div className="h-4 overflow-hidden rounded-full bg-slate-100">
           <div
             className={`h-full rounded-full ${progress >= 100 ? 'bg-emerald-500' : 'bg-[#0b4d7f]'}`}
-            style={{ width: `${progress}%` }}
+            style={{ width: getProgressWidth(progress) }}
           />
         </div>
         <div className="mt-4 flex justify-between text-sm text-slate-600">
-          <span>{releaseWl} WL release được tính KPI</span>
-          <span>{totalTarget} WL mục tiêu</span>
+          <span>{formatWl(releaseWl)} WL release được tính KPI</span>
+          <span>{formatWl(totalTarget)} WL mục tiêu</span>
         </div>
       </section>
 
@@ -229,7 +253,7 @@ function AdminKpiReport({ tasks, users }: { tasks: Task[]; users: ReportUser[] }
               <div>
                 <p className="text-2xl font-bold text-slate-950">{topUser.name}</p>
                 <p className="mt-1 text-sm text-slate-600">
-                  {topUser.doneWl} done WL, trong đó {topUser.releaseWl} release WL
+                  {formatWl(topUser.doneWl)} done WL, trong đó {formatWl(topUser.releaseWl)} release WL
                 </p>
               </div>
               <span className="text-3xl font-bold text-[#0b4d7f]">{topUser.progress}%</span>
@@ -245,17 +269,17 @@ function AdminKpiReport({ tasks, users }: { tasks: Task[]; users: ReportUser[] }
               <div>
                 <p className="font-semibold text-slate-950">{row.name}</p>
                 <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
-                  <div className="h-full rounded-full bg-[#0b4d7f]" style={{ width: `${row.progress}%` }} />
+                  <div className="h-full rounded-full bg-[#0b4d7f]" style={{ width: getProgressWidth(row.progress) }} />
                 </div>
               </div>
               <div className="text-sm text-slate-600">
-                Raw: <span className="font-semibold text-slate-950">{row.rawWl}</span>
+                Raw: <span className="font-semibold text-slate-950">{formatWl(row.rawWl)}</span>
               </div>
               <div className="text-sm text-slate-600">
-                Done: <span className="font-semibold text-slate-950">{row.doneWl}</span>
+                Done: <span className="font-semibold text-slate-950">{formatWl(row.doneWl)}</span>
               </div>
               <div className="text-sm text-slate-600">
-                KPI: <span className="font-semibold text-slate-950">{row.releaseWl}/{row.target}</span>
+                KPI: <span className="font-semibold text-slate-950">{formatWl(row.releaseWl)}/{formatWl(row.target)}</span>
               </div>
             </div>
           ))}
@@ -271,12 +295,12 @@ function MemberKpiReport({ tasks, target }: { tasks: Task[]; target: number }) {
 
   const rawWl = sumWl(monthlyTasks);
   const doneWl = sumWl(
-    monthlyTasks.filter((task) => ['done', 'completed', 'release'].includes(task.status))
+    monthlyTasks.filter((task) => isDoneStatus(task.status))
   );
   const releaseWl = sumWl(monthlyTasks.filter((task) => task.status === 'release'));
 
   const remaining = Math.max(target - releaseWl, 0);
-  const progress = target > 0 ? Math.min(Math.round((releaseWl / target) * 100), 100) : 0;
+  const progress = getKpiPercent(releaseWl, target);
   const monthLabel = now.toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' });
 
   return (
@@ -291,7 +315,7 @@ function MemberKpiReport({ tasks, target }: { tasks: Task[]; target: number }) {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
         <MetricCard
           title="KPI WL Tháng"
-          value={`${target}`}
+          value={formatWl(target)}
           unit="WL"
           trend={target > 0 ? 'Chỉ tiêu được admin thiết lập' : 'Chưa được thiết lập KPI'}
           icon={<Target className="w-6 h-6 text-[#0b4d7f]" />}
@@ -299,7 +323,7 @@ function MemberKpiReport({ tasks, target }: { tasks: Task[]; target: number }) {
         />
         <MetricCard
           title="Raw WL"
-          value={`${rawWl}`}
+          value={formatWl(rawWl)}
           unit="WL"
           trend="Tổng WL đã log trong tháng"
           icon={<CalendarDays className="w-6 h-6 text-slate-600" />}
@@ -307,17 +331,17 @@ function MemberKpiReport({ tasks, target }: { tasks: Task[]; target: number }) {
         />
         <MetricCard
           title="Done WL"
-          value={`${doneWl}`}
+          value={formatWl(doneWl)}
           unit="WL"
-          trend="Bao gồm cả release"
+          trend="Bao gồm in review và release"
           icon={<CheckCircle2 className="w-6 h-6 text-emerald-600" />}
           iconClass="bg-emerald-100"
         />
         <MetricCard
           title="Release WL"
-          value={`${releaseWl}`}
+          value={formatWl(releaseWl)}
           unit="WL"
-          trend={`${progress}% KPI tháng`}
+          trend={getKpiTrend(progress, 'KPI tháng')}
           icon={<Rocket className="w-6 h-6 text-purple-700" />}
           iconClass="bg-purple-100"
         />
@@ -327,18 +351,20 @@ function MemberKpiReport({ tasks, target }: { tasks: Task[]; target: number }) {
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-xl font-bold text-slate-950">Tiến độ KPI tháng</h2>
           <span className="text-sm font-semibold text-slate-500">
-            Còn cần {remaining} WL
+            {releaseWl > target && target > 0
+              ? `Vượt ${formatWl(releaseWl - target)} WL`
+              : `Còn cần ${formatWl(remaining)} WL`}
           </span>
         </div>
         <div className="h-4 overflow-hidden rounded-full bg-slate-100">
           <div
             className={`h-full rounded-full ${progress >= 100 ? 'bg-emerald-500' : 'bg-[#0b4d7f]'}`}
-            style={{ width: `${progress}%` }}
+            style={{ width: getProgressWidth(progress) }}
           />
         </div>
         <div className="mt-4 flex justify-between text-sm text-slate-600">
-          <span>{releaseWl} WL release được tính KPI</span>
-          <span>{target} WL mục tiêu</span>
+          <span>{formatWl(releaseWl)} WL release được tính KPI</span>
+          <span>{formatWl(target)} WL mục tiêu</span>
         </div>
       </section>
     </div>

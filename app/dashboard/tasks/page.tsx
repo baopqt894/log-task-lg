@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle, Clock, Download, Pencil, Rocket, Search } from 'lucide-react';
+import { AlertCircle, CheckCircle, Clock, Download, Pencil, Plus, Rocket, Search } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { CreateTaskModal } from '@/components/create-task-modal';
 import { downloadXlsxFile } from '@/lib/export-xlsx';
@@ -93,12 +93,23 @@ function getRoleName(user?: UserOption) {
   return role?.name || 'member';
 }
 
+function formatWl(value: number) {
+  return Number(value || 0).toLocaleString('vi-VN', {
+    maximumFractionDigits: 2,
+  });
+}
+
+function isDoneStatus(status: TaskStatus) {
+  return ['done', 'completed', 'in_review', 'release'].includes(status);
+}
+
 export default function TasksPage() {
   const { user, loading: authLoading } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [boards, setBoards] = useState<BoardOption[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -186,7 +197,7 @@ export default function TasksPage() {
 
   const stats = useMemo(() => {
     const rawWl = tasks.reduce((sum, task) => sum + Number(task.quantity || 0), 0);
-    const doneTasks = tasks.filter((task) => ['done', 'completed', 'release'].includes(task.status));
+    const doneTasks = tasks.filter((task) => isDoneStatus(task.status));
     const releaseTasks = tasks.filter((task) => task.status === 'release');
 
     return {
@@ -226,7 +237,7 @@ export default function TasksPage() {
       const ownerName = owner?.full_name || owner?.email || (ownerId === user.id ? user.fullName : '-');
       const status = statusLabels[task.status] || task.status;
       const quantity = Number(task.quantity || 0);
-      const doneWl = ['done', 'completed', 'release'].includes(task.status) ? quantity : 0;
+      const doneWl = isDoneStatus(task.status) ? quantity : 0;
       const releaseWl = task.status === 'release' ? quantity : 0;
 
       return [
@@ -292,6 +303,14 @@ export default function TasksPage() {
           ))}
         </select>
         <button
+          onClick={() => setShowCreateModal(true)}
+          disabled={boards.length === 0}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Plus className="h-4 w-4" />
+          Tạo Task
+        </button>
+        <button
           onClick={exportTaskJournal}
           className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0b4d7f] px-4 text-sm font-semibold text-white hover:bg-[#083b63]"
         >
@@ -302,9 +321,9 @@ export default function TasksPage() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-6">
         <StatCard label="Tổng task" value={`${stats.total}`} icon={<AlertCircle className="h-4 w-4" />} />
-        <StatCard label="Raw WL" value={`${stats.rawWl}`} icon={<Clock className="h-4 w-4" />} />
-        <StatCard label="Done WL" value={`${stats.doneWl}`} icon={<CheckCircle className="h-4 w-4" />} />
-        <StatCard label="Release WL" value={`${stats.releaseWl}`} icon={<Rocket className="h-4 w-4" />} />
+        <StatCard label="Raw WL" value={formatWl(stats.rawWl)} icon={<Clock className="h-4 w-4" />} />
+        <StatCard label="Done WL" value={formatWl(stats.doneWl)} icon={<CheckCircle className="h-4 w-4" />} />
+        <StatCard label="Release WL" value={formatWl(stats.releaseWl)} icon={<Rocket className="h-4 w-4" />} />
         <StatCard label="In progress" value={`${stats.inProgress}`} icon={<Clock className="h-4 w-4" />} />
         <StatCard label="Pending" value={`${stats.pending}`} icon={<AlertCircle className="h-4 w-4" />} />
       </div>
@@ -363,7 +382,7 @@ export default function TasksPage() {
                       </td>
                       <td className="px-5 py-4 text-sm text-slate-700">{ownerName}</td>
                       <td className="px-5 py-4 text-sm font-semibold text-slate-950">
-                        {Number(task.quantity || 0)} WL
+                        {formatWl(Number(task.quantity || 0))} WL
                       </td>
                       <td className="px-5 py-4">
                         <span
@@ -399,14 +418,18 @@ export default function TasksPage() {
         </div>
       </section>
 
-      {editingTask && (
+      {(showCreateModal || editingTask) && (
         <CreateTaskModal
           projects={projects}
           boards={boards}
           selectedBoardId={selectedBoardId}
           task={editingTask}
-          onClose={() => setEditingTask(null)}
+          onClose={() => {
+            setShowCreateModal(false);
+            setEditingTask(null);
+          }}
           onSuccess={() => {
+            setShowCreateModal(false);
             setEditingTask(null);
             fetchData();
           }}

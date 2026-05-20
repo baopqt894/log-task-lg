@@ -94,7 +94,18 @@ export async function PATCH(
     if ('boardId' in body) update.board_id = body.boardId || null
     if ('task_type' in body) update.task_type = body.task_type
     if ('taskType' in body) update.task_type = body.taskType
-    if ('quantity' in body) update.quantity = body.quantity === null ? null : Number(body.quantity || 0)
+    if ('quantity' in body) {
+      const nextQuantity =
+        body.quantity === null || body.quantity === undefined || body.quantity === ''
+          ? null
+          : Number(body.quantity)
+
+      if (nextQuantity !== null && !Number.isFinite(nextQuantity)) {
+        return NextResponse.json({ message: 'Quantity must be a valid number' }, { status: 400 })
+      }
+
+      update.quantity = nextQuantity
+    }
     if ('estimated_hours' in body) {
       update.estimated_hours = body.estimated_hours === null ? null : Number(body.estimated_hours || 0)
     }
@@ -166,7 +177,7 @@ export async function DELETE(
       return NextResponse.json({ message: 'Task not found' }, { status: 404 })
     }
 
-    if (task.created_by !== payload.userId) {
+    if (currentRole !== 'admin' && task.created_by !== payload.userId) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
     }
 
