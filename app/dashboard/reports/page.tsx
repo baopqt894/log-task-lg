@@ -39,7 +39,7 @@ export default function ReportsPage() {
   const fetchData = async () => {
     try {
       if (user?.role !== 'admin') {
-        const tasksResponse = await fetch('/api/tasks');
+        const tasksResponse = await fetch('/api/tasks?scope=mine');
         const tasksData = await tasksResponse.json();
         setTasks(tasksData.tasks || []);
         return;

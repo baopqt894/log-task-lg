@@ -114,6 +114,7 @@ export default function TasksPage() {
     try {
       const taskParams = new URLSearchParams();
       if (selectedBoardId) taskParams.set('boardId', selectedBoardId);
+      if (user?.role !== 'admin') taskParams.set('scope', 'mine');
       const requests = [
         fetch(`/api/tasks${taskParams.toString() ? `?${taskParams}` : ''}`),
         fetch('/api/projects?options=1'),
@@ -139,6 +140,8 @@ export default function TasksPage() {
       setLoading(false);
     }
   };
+
+  const canEditTask = (task: Task) => task.created_by === user?.id;
 
   const projectMap = useMemo(
     () => new Map(projects.map((project) => [project.id, project.name])),
@@ -261,7 +264,7 @@ export default function TasksPage() {
         <p className="mt-1 text-slate-600">
           {user.role === 'admin'
             ? 'Xem toàn bộ task của tất cả user.'
-            : 'Xem các task bạn đã tạo hoặc được gán.'}
+            : 'Xem nhật ký task của riêng bạn.'}
         </p>
       </div>
 
@@ -375,13 +378,17 @@ export default function TasksPage() {
                         {formatDate(task.updated_at || task.created_at)}
                       </td>
                       <td className="px-5 py-4">
-                        <button
-                          onClick={() => setEditingTask(task)}
-                          className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                          Sửa
-                        </button>
+                        {canEditTask(task) ? (
+                          <button
+                            onClick={() => setEditingTask(task)}
+                            className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            Sửa
+                          </button>
+                        ) : (
+                          <span className="text-xs font-medium text-slate-400">Chỉ xem</span>
+                        )}
                       </td>
                     </tr>
                   );

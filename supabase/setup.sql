@@ -83,6 +83,21 @@ create table if not exists public.tasks (
 alter table public.tasks
   add column if not exists board_id uuid references public.boards(id) on delete set null;
 
+alter table public.tasks replica identity full;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'tasks'
+  ) then
+    alter publication supabase_realtime add table public.tasks;
+  end if;
+end $$;
+
 alter table public.roles disable row level security;
 alter table public.users disable row level security;
 alter table public.projects disable row level security;

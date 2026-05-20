@@ -128,3 +128,39 @@
     letter-spacing: 0;
   }
 }
+
+@keyframes task-card-enter {
+  0% {
+    transform: translate3d(-36px, -8px, 0) scale(0.98);
+  }
+  70% {
+    transform: translate3d(4px, 0, 0) scale(1);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes task-card-exit {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  100% {
+    transform: translate3d(48px, -8px, 0) scale(0.98);
+  }
+}
+
+.task-card-enter {
+  animation: task-card-enter 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.task-card-exit {
+  animation: task-card-exit 220ms cubic-bezier(0.7, 0, 0.84, 0) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-card-enter,
+  .task-card-exit {
+    animation: none;
+  }
+}

@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const projectId = searchParams.get('projectId')
     const boardId = searchParams.get('boardId')
+    const scope = searchParams.get('scope')
 
     const supabase = createAdminClient()
 
@@ -91,6 +92,10 @@ export async function GET(request: NextRequest) {
       }
 
       query = query.in('board_id', allowedBoardIds)
+
+      if (scope === 'mine') {
+        query = query.or(`assigned_to.eq.${payload.userId},created_by.eq.${payload.userId}`)
+      }
     }
 
     if (boardId) {

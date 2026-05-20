@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { TaskCard } from '@/components/task-card';
 import { CreateTaskModal } from '@/components/create-task-modal';
 import { TaskDetailModal } from '@/components/task-detail-modal';
+import { createClient } from '@/lib/supabase/client';
 import {
   Search,
   Plus,
@@ -132,6 +133,15 @@ function getDefaultBoardId(boards: Board[]) {
   return [...boards].sort((a, b) => getBoardMonthValue(b) - getBoardMonthValue(a))[0]?.id || '';
 }
 
+const TASK_EXIT_ANIMATION_MS = 220;
+const TASK_ENTER_HIGHLIGHT_MS = 1200;
+
+function wait(ms: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -151,6 +161,8 @@ export default function DashboardPage() {
   const [showBoardSettings, setShowBoardSettings] = useState(false);
   const [showBoardDropdown, setShowBoardDropdown] = useState(false);
   const [taskMenu, setTaskMenu] = useState<{ task: Task; x: number; y: number } | null>(null);
+  const [appearingTaskIds, setAppearingTaskIds] = useState<string[]>([]);
+  const [removingTaskIds, setRemovingTaskIds] = useState<string[]>([]);
   const [boardMonth, setBoardMonth] = useState(new Date().toISOString().slice(0, 7));
   const [boardMemberIds, setBoardMemberIds] = useState<string[]>([]);
   const [settingsMemberIds, setSettingsMemberIds] = useState<string[]>([]);
@@ -159,11 +171,25 @@ export default function DashboardPage() {
   const [dragOverStatus, setDragOverStatus] = useState<BoardStatus | null>(null);
   const [deletingTask, setDeletingTask] = useState(false);
   const boardDropdownRef = useRef<HTMLDivElement | null>(null);
+  const tasksRef = useRef<Task[]>([]);
+
+  const markTasksAsAppearing = (taskIds: string[]) => {
+    if (taskIds.length === 0) return;
+
+    setAppearingTaskIds((current) => Array.from(new Set([...current, ...taskIds])));
+    window.setTimeout(() => {
+      setAppearingTaskIds((current) => current.filter((id) => !taskIds.includes(id)));
+    }, TASK_ENTER_HIGHLIGHT_MS);
+  };
 
   useEffect(() => {
     fetchProjects();
     fetchBoards();
   }, []);
+
+  useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
 
   useEffect(() => {
     if (user?.role === 'admin') {
@@ -197,19 +223,74 @@ export default function DashboardPage() {
     fetchTasks(selectedBoardId);
   }, [boardsLoaded, selectedBoardId]);
 
-  const fetchTasks = async (boardId = selectedBoardId) => {
-    setLoading(true);
+  useEffect(() => {
+    if (!boardsLoaded || !selectedBoardId) return;
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`tasks-board-${selectedBoardId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tasks',
+          filter: `board_id=eq.${selectedBoardId}`,
+        },
+        async (payload) => {
+          if (payload.eventType === 'DELETE') {
+            const deletedTaskId = String((payload.old as { id?: string } | null)?.id || '');
+
+            if (deletedTaskId && tasksRef.current.some((task) => task.id === deletedTaskId)) {
+              setRemovingTaskIds((current) => Array.from(new Set([...current, deletedTaskId])));
+              await wait(TASK_EXIT_ANIMATION_MS);
+              setTasks((current) => current.filter((task) => task.id !== deletedTaskId));
+              setRemovingTaskIds((current) => current.filter((id) => id !== deletedTaskId));
+            }
+
+            refreshTasksQuietly(selectedBoardId);
+            return;
+          }
+
+          refreshTasksQuietly(selectedBoardId);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [boardsLoaded, selectedBoardId]);
+
+  const fetchTasks = async (
+    boardId = selectedBoardId,
+    options: { showLoading?: boolean } = {}
+  ) => {
+    const showLoading = options.showLoading ?? true;
+    if (showLoading) setLoading(true);
     try {
       const params = new URLSearchParams();
       if (boardId) params.set('boardId', boardId);
       const response = await fetch(`/api/tasks${params.toString() ? `?${params}` : ''}`);
       const data = await response.json();
-      setTasks(data.tasks || []);
+      const nextTasks = data.tasks || [];
+      if (!showLoading) {
+        const currentTaskIds = new Set(tasksRef.current.map((task) => task.id));
+        const nextNewTaskIds = nextTasks
+          .map((task: Task) => task.id)
+          .filter((id: string) => !currentTaskIds.has(id));
+        markTasksAsAppearing(nextNewTaskIds);
+      }
+      setTasks(nextTasks);
     } catch (error) {
       console.error('Error fetching tasks:', error);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
+  };
+
+  const refreshTasksQuietly = (boardId = selectedBoardId) => {
+    fetchTasks(boardId, { showLoading: false });
   };
 
   const fetchProjects = async () => {
@@ -253,7 +334,7 @@ export default function DashboardPage() {
   };
 
   const handleTaskCreated = () => {
-    fetchTasks();
+    refreshTasksQuietly();
     setShowCreateModal(false);
     setEditingTask(null);
     setViewingTask(null);
@@ -383,15 +464,51 @@ export default function DashboardPage() {
         }),
       });
 
+      const data = await response.json().catch(() => null);
+
       if (!response.ok) {
-        const data = await response.json().catch(() => null);
         console.error('Error duplicating task:', data?.message || response.statusText);
+        toast({
+          variant: 'destructive',
+          title: 'Không thể duplicate task',
+          description: data?.message || 'Vui lòng thử lại sau.',
+        });
         return;
       }
 
-      fetchTasks();
+      const duplicatedTask = {
+        ...task,
+        ...(data?.task || {}),
+        title: data?.task?.title || `${task.title} (copy)`,
+        description: data?.task?.description ?? task.description,
+        project: task.project,
+        assignee: task.assignee,
+        creator: task.creator,
+      } as Task;
+
+      setTasks((current) => {
+        const sourceIndex = current.findIndex((item) => item.id === task.id);
+        if (sourceIndex === -1) return [duplicatedTask, ...current];
+
+        return [
+          ...current.slice(0, sourceIndex + 1),
+          duplicatedTask,
+          ...current.slice(sourceIndex + 1),
+        ];
+      });
+      markTasksAsAppearing([duplicatedTask.id]);
+      toast({
+        title: 'Đã duplicate task',
+        description: `"${task.title}" đã được nhân bản.`,
+      });
+      refreshTasksQuietly();
     } catch (error) {
       console.error('Error duplicating task:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Không thể duplicate task',
+        description: 'Vui lòng thử lại sau.',
+      });
     }
   };
 
@@ -426,8 +543,13 @@ export default function DashboardPage() {
         title: 'Đã xoá task',
         description: `"${taskToDelete.title}" đã được xoá khỏi bảng.`,
       });
+      const deletedTaskId = taskToDelete.id;
       setTaskToDelete(null);
-      fetchTasks();
+      setRemovingTaskIds((current) => Array.from(new Set([...current, deletedTaskId])));
+      await wait(TASK_EXIT_ANIMATION_MS);
+      setTasks((current) => current.filter((task) => task.id !== deletedTaskId));
+      setRemovingTaskIds((current) => current.filter((id) => id !== deletedTaskId));
+      refreshTasksQuietly();
     } catch (error) {
       console.error('Error deleting task:', error);
       toast({
@@ -781,9 +903,11 @@ export default function DashboardPage() {
                     <TaskCard
                       key={task.id}
                       task={task}
-                      onUpdate={fetchTasks}
+                      onUpdate={refreshTasksQuietly}
                       draggable={canEditTask(task)}
                       isDragging={draggingTaskId === task.id}
+                      isHighlighted={appearingTaskIds.includes(task.id)}
+                      isRemoving={removingTaskIds.includes(task.id)}
                       onDragStart={(event) => {
                         if (!canEditTask(task)) return;
                         setDraggingTaskId(task.id);

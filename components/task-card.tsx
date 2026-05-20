@@ -39,6 +39,8 @@ interface TaskCardProps {
   isDragging?: boolean;
   canEdit?: boolean;
   isOwnTask?: boolean;
+  isHighlighted?: boolean;
+  isRemoving?: boolean;
   onOpen?: () => void;
   onEdit?: () => void;
   onContextMenu?: (event: MouseEvent<HTMLDivElement>) => void;
@@ -53,6 +55,8 @@ export function TaskCard({
   isDragging,
   canEdit = false,
   isOwnTask = false,
+  isHighlighted = false,
+  isRemoving = false,
   onOpen,
   onEdit,
   onContextMenu,
@@ -160,12 +164,16 @@ export function TaskCard({
       onContextMenu={onContextMenu}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      className={`rounded-lg border p-5 hover:shadow-md transition-shadow ${
+      className={`rounded-lg border p-5 transition-all duration-200 hover:shadow-md ${
         isOwnTask ? 'border-blue-200 bg-blue-50/70' : 'border-slate-200 bg-white'
       } ${
         draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
       } ${
         isDragging ? 'opacity-50 ring-2 ring-blue-200' : ''
+      } ${
+        isHighlighted ? 'task-card-enter ring-2 ring-emerald-200' : ''
+      } ${
+        isRemoving ? 'task-card-exit pointer-events-none' : ''
       }`}
     >
       {/* Project Tag */}
@@ -207,13 +215,6 @@ export function TaskCard({
         <div className="text-xs font-semibold text-slate-700">
           {Number(task.quantity || 0)} WL
         </div>
-
-        {/* Status Progress (for in progress tasks) */}
-        {normalizedStatus === 'in_progress' && (
-          <div className="flex-1 ml-2 h-1 bg-slate-200 rounded-full overflow-hidden">
-            <div className="h-full w-2/3 bg-blue-600 rounded-full"></div>
-          </div>
-        )}
       </div>
 
       {/* Status Indicator */}
