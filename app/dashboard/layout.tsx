@@ -1,6 +1,7 @@
 'use client';
 
 import { SidebarWithUser } from '@/components/sidebar';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -38,14 +39,14 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen bg-[#f4f7fb]">
+    <div className="flex h-screen bg-[#f4f7fb] dark:bg-slate-950">
       <SidebarWithUser user={user} loading={loading} collapsed={sidebarCollapsed} />
       <main
         className={`flex-1 overflow-auto transition-[margin] duration-200 ${
           sidebarCollapsed ? 'ml-20' : 'ml-64'
         }`}
       >
-        <header className="flex h-[68px] items-center justify-between border-b border-slate-200 bg-white/90 px-6 backdrop-blur">
+        <header className="flex h-[68px] items-center justify-between border-b border-slate-200 bg-white/90 px-6 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
           <button
             type="button"
             onClick={() => setSidebarCollapsed((current) => !current)}
@@ -73,6 +74,7 @@ export default function DashboardLayout({
             <button className="text-slate-500 hover:text-[#0b4d7f]" aria-label="Làm mới">
               <RotateCcw className="w-5 h-5" />
             </button>
+            <ThemeToggle />
             <div className="h-11 w-11 rounded-full bg-gradient-to-br from-sky-200 via-cyan-100 to-amber-100 ring-2 ring-white shadow-sm" />
           </div>
         </header>
