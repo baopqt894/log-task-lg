@@ -39,14 +39,14 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen bg-[#f4f7fb] dark:bg-slate-950">
+    <div className="flex h-screen bg-[#f4f7fb] dark:bg-[#172033]">
       <SidebarWithUser user={user} loading={loading} collapsed={sidebarCollapsed} />
       <main
         className={`flex-1 overflow-auto transition-[margin] duration-200 ${
           sidebarCollapsed ? 'ml-20' : 'ml-64'
         }`}
       >
-        <header className="flex h-[68px] items-center justify-between border-b border-slate-200 bg-white/90 px-6 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
+        <header className="flex h-[68px] items-center justify-between border-b border-slate-200 bg-white/90 px-6 backdrop-blur dark:border-[#3a4a61] dark:bg-[#202b3e]/92">
           <button
             type="button"
             onClick={() => setSidebarCollapsed((current) => !current)}
