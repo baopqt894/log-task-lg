@@ -27,7 +27,7 @@ interface Task {
   board_id?: string | null;
   task_type?: string;
   project?: { name: string };
-  assignee?: { full_name: string };
+  assignee?: { full_name?: string | null; email?: string | null; avatar_url?: string | null };
 }
 
 interface TaskCardProps {
@@ -52,6 +52,17 @@ function formatWl(value: number) {
   });
 }
 
+function getInitials(name?: string | null, email?: string | null) {
+  const source = (name || email || 'U').trim();
+  const parts = source.split(/\s+/).filter(Boolean);
+
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  }
+
+  return source.slice(0, 2).toUpperCase();
+}
+
 export function TaskCard({
   task,
   onUpdate,
@@ -71,6 +82,7 @@ export function TaskCard({
 
   const normalizedStatus =
     task.status === 'not_started' ? 'pending' : task.status === 'completed' ? 'done' : task.status;
+  const assigneeName = task.assignee?.full_name || task.assignee?.email || 'Avatar';
 
   const getStatusColor = () => {
     switch (normalizedStatus) {
@@ -206,8 +218,16 @@ export function TaskCard({
         {/* Assignee */}
         {task.assignee && (
           <div className="flex items-center">
-            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#44546f] text-xs font-bold text-white">
-              {task.assignee.full_name.charAt(0).toUpperCase()}
+            <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-[#44546f] text-xs font-bold text-white">
+              {task.assignee.avatar_url ? (
+                <img
+                  src={task.assignee.avatar_url}
+                  alt={assigneeName}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                getInitials(task.assignee.full_name, task.assignee.email)
+              )}
             </div>
           </div>
         )}

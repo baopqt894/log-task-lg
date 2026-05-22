@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 export interface User {
   id: string
   email: string
   fullName: string
+  avatarUrl?: string | null
   role: string
   monthlyWlKpi: number
 }
@@ -16,26 +17,43 @@ export function useAuth() {
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const res = await fetch('/api/auth/me')
-        if (res.ok) {
-          const data = await res.json()
-          setUser(data.user)
-        } else {
-          setUser(null)
-        }
-      } catch (error) {
-        console.error('Auth check failed:', error)
+  const refreshUser = useCallback(async (showLoading = false) => {
+    if (showLoading) setLoading(true)
+
+    try {
+      const res = await fetch('/api/auth/me')
+      if (res.ok) {
+        const data = await res.json()
+        setUser(data.user)
+      } else {
         setUser(null)
-      } finally {
-        setLoading(false)
       }
+    } catch (error) {
+      console.error('Auth check failed:', error)
+      setUser(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    refreshUser(true)
+  }, [refreshUser])
+
+  useEffect(() => {
+    const handleUserUpdated = (event: Event) => {
+      const nextUser = (event as CustomEvent<{ user?: Partial<User> }>).detail?.user
+
+      if (nextUser) {
+        setUser((current) => (current ? { ...current, ...nextUser } : current))
+      }
+
+      refreshUser()
     }
 
-    checkAuth()
-  }, [])
+    window.addEventListener('auth:user-updated', handleUserUpdated)
+    return () => window.removeEventListener('auth:user-updated', handleUserUpdated)
+  }, [refreshUser])
 
   const logout = async () => {
     try {
@@ -47,5 +65,5 @@ export function useAuth() {
     }
   }
 
-  return { user, loading, logout }
+  return { user, loading, logout, refreshUser }
 }

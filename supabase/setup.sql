@@ -13,6 +13,7 @@ create table if not exists public.users (
   id uuid primary key references auth.users(id) on delete cascade,
   email text not null unique,
   full_name text,
+  avatar_url text,
   role_id uuid references public.roles(id),
   monthly_wl_kpi numeric not null default 0,
   is_active boolean not null default true,
@@ -22,6 +23,9 @@ create table if not exists public.users (
 
 alter table public.users
   add column if not exists monthly_wl_kpi numeric not null default 0;
+
+alter table public.users
+  add column if not exists avatar_url text;
 
 create table if not exists public.projects (
   id uuid primary key default gen_random_uuid(),

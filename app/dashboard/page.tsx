@@ -124,6 +124,7 @@ interface UserOption {
   id: string;
   email: string;
   full_name?: string | null;
+  avatar_url?: string | null;
   roles?: { name: string } | Array<{ name: string }> | null;
 }
 
@@ -1181,13 +1182,21 @@ function BoardUserPicker({
                   className="sr-only"
                 />
                 <span
-                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold transition ${
+                  className={`flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full text-sm font-bold transition ${
                     selected
                       ? 'bg-blue-600 text-white'
                       : 'bg-slate-100 text-slate-600 group-hover:bg-blue-50 group-hover:text-blue-700'
                   }`}
                 >
-                  {getUserInitials(item)}
+                  {item.avatar_url ? (
+                    <img
+                      src={item.avatar_url}
+                      alt={getUserDisplayName(item)}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    getUserInitials(item)
+                  )}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex min-w-0 items-center gap-2">

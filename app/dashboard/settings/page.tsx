@@ -1,18 +1,31 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { KeyRound, Save, ShieldCheck } from 'lucide-react';
+import { Camera, KeyRound, Save, ShieldCheck, Upload } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 
+function getInitials(name?: string, email?: string) {
+  const source = (name || email || 'U').trim();
+  const parts = source.split(/\s+/).filter(Boolean);
+
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  }
+
+  return source.slice(0, 2).toUpperCase();
+}
+
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { toast } = useToast();
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
+    avatar_url: '',
   });
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -25,6 +38,7 @@ export default function SettingsPage() {
       setFormData({
         full_name: user.fullName || '',
         email: user.email || '',
+        avatar_url: user.avatarUrl || '',
       });
     }
   }, [user]);
@@ -53,6 +67,16 @@ export default function SettingsPage() {
         title: 'Đã cập nhật hồ sơ',
         description: 'Thông tin cá nhân đã được lưu lại.',
       });
+      window.dispatchEvent(
+        new CustomEvent('auth:user-updated', {
+          detail: {
+            user: {
+              fullName: data?.user?.fullName || formData.full_name,
+              avatarUrl: data?.user?.avatarUrl ?? formData.avatar_url,
+            },
+          },
+        })
+      );
     } catch (error) {
       console.error('Error updating profile:', error);
       toast({
@@ -62,6 +86,67 @@ export default function SettingsPage() {
       });
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast({
+        variant: 'destructive',
+        title: 'File không hợp lệ',
+        description: 'Vui lòng chọn file hình ảnh.',
+      });
+      return;
+    }
+
+    setUploadingAvatar(true);
+    try {
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', file);
+
+      const response = await fetch('/api/users/avatar', {
+        method: 'POST',
+        body: uploadFormData,
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        toast({
+          variant: 'destructive',
+          title: 'Không thể cập nhật avatar',
+          description: data?.message || 'Vui lòng thử lại sau.',
+        });
+        return;
+      }
+
+      setFormData((current) => ({
+        ...current,
+        avatar_url: data.avatarUrl || '',
+      }));
+      window.dispatchEvent(
+        new CustomEvent('auth:user-updated', {
+          detail: { user: { avatarUrl: data.avatarUrl } },
+        })
+      );
+      await refreshUser();
+      toast({
+        title: 'Đã cập nhật avatar',
+        description: 'Ảnh đại diện mới đã được lưu lại.',
+      });
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Không thể cập nhật avatar',
+        description: 'Vui lòng thử lại sau.',
+      });
+    } finally {
+      setUploadingAvatar(false);
     }
   };
 
@@ -135,6 +220,48 @@ export default function SettingsPage() {
           <h2 className="text-xl font-bold text-slate-900">Thông Tin Cá Nhân</h2>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center">
+            <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-white">
+              {formData.avatar_url ? (
+                <img
+                  src={formData.avatar_url}
+                  alt={formData.full_name || 'Avatar'}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-slate-200 text-lg font-bold text-slate-600">
+                  {getInitials(formData.full_name, formData.email)}
+                </div>
+              )}
+              <div className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full bg-[#0c66e4] text-white ring-2 ring-white">
+                <Camera className="h-3.5 w-3.5" />
+              </div>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-slate-900">Avatar</p>
+              <p className="mt-1 truncate text-sm text-slate-500">
+                {formData.avatar_url || 'Chưa có ảnh đại diện'}
+              </p>
+            </div>
+            <input
+              id="avatar-upload"
+              type="file"
+              accept="image/*"
+              onChange={handleAvatarUpload}
+              disabled={uploadingAvatar}
+              className="sr-only"
+            />
+            <label
+              htmlFor="avatar-upload"
+              className={`inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 ${
+                uploadingAvatar ? 'pointer-events-none opacity-50' : ''
+              }`}
+            >
+              <Upload className="h-4 w-4" />
+              {uploadingAvatar ? 'Đang tải...' : 'Tải ảnh'}
+            </label>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-slate-900 mb-2">
               Họ Tên

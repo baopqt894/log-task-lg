@@ -29,19 +29,32 @@ export async function GET(request: NextRequest) {
     // the KPI migration is applied.
     let { data: user, error } = await supabase
       .from('users')
-      .select('id, email, full_name, role_id, monthly_wl_kpi')
+      .select('id, email, full_name, avatar_url, role_id, monthly_wl_kpi')
       .eq('id', payload.userId)
       .single()
 
     if (error?.code === '42703') {
       const fallback = await supabase
         .from('users')
-        .select('id, email, full_name, role_id')
+        .select('id, email, full_name, role_id, monthly_wl_kpi')
         .eq('id', payload.userId)
         .single()
 
-      user = fallback.data ? { ...fallback.data, monthly_wl_kpi: 0 } : null
+      user = fallback.data ? { ...fallback.data, avatar_url: null } : null
       error = fallback.error
+
+      if (error?.code === '42703') {
+        const legacyFallback = await supabase
+          .from('users')
+          .select('id, email, full_name, role_id')
+          .eq('id', payload.userId)
+          .single()
+
+        user = legacyFallback.data
+          ? { ...legacyFallback.data, avatar_url: null, monthly_wl_kpi: 0 }
+          : null
+        error = legacyFallback.error
+      }
     }
 
     if (error || !user) {
@@ -63,6 +76,7 @@ export async function GET(request: NextRequest) {
         id: user.id,
         email: user.email,
         fullName: user.full_name,
+        avatarUrl: user.avatar_url || null,
         role: role?.name || 'member',
         monthlyWlKpi: Number(user.monthly_wl_kpi || 0),
       },

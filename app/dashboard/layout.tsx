@@ -2,10 +2,22 @@
 
 import { SidebarWithUser } from '@/components/sidebar';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Bell, PanelLeftClose, PanelLeftOpen, RotateCcw, Search } from 'lucide-react';
+
+function getInitials(name?: string, email?: string) {
+  const source = (name || email || 'U').trim();
+  const parts = source.split(/\s+/).filter(Boolean);
+
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  }
+
+  return source.slice(0, 2).toUpperCase();
+}
 
 export default function DashboardLayout({
   children,
@@ -75,7 +87,14 @@ export default function DashboardLayout({
               <RotateCcw className="w-5 h-5" />
             </button>
             <ThemeToggle />
-            <div className="h-11 w-11 rounded-full bg-gradient-to-br from-sky-200 via-cyan-100 to-amber-100 ring-2 ring-white shadow-sm" />
+            <Avatar className="h-11 w-11 border border-slate-200 bg-slate-100 ring-2 ring-white shadow-sm dark:border-[#2c333a] dark:bg-[#22272b] dark:ring-[#101214]">
+              {user.avatarUrl && (
+                <AvatarImage src={user.avatarUrl} alt={user.fullName || user.email} />
+              )}
+              <AvatarFallback className="bg-slate-200 text-sm font-bold text-slate-600 dark:bg-[#2c333a] dark:text-[#b6c2cf]">
+                {getInitials(user.fullName, user.email)}
+              </AvatarFallback>
+            </Avatar>
           </div>
         </header>
         <div className="p-8">

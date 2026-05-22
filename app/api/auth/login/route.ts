@@ -19,19 +19,32 @@ export async function POST(request: NextRequest) {
     // the latest SQL migration yet.
     let { data: users, error: queryError } = await supabase
       .from('users')
-      .select('id, email, full_name, role_id, is_active, monthly_wl_kpi')
+      .select('id, email, full_name, avatar_url, role_id, is_active, monthly_wl_kpi')
       .eq('email', email)
       .single()
 
     if (queryError?.code === '42703') {
       const fallback = await supabase
         .from('users')
-        .select('id, email, full_name, role_id, is_active')
+        .select('id, email, full_name, role_id, is_active, monthly_wl_kpi')
         .eq('email', email)
         .single()
 
-      users = fallback.data ? { ...fallback.data, monthly_wl_kpi: 0 } : null
+      users = fallback.data ? { ...fallback.data, avatar_url: null } : null
       queryError = fallback.error
+
+      if (queryError?.code === '42703') {
+        const legacyFallback = await supabase
+          .from('users')
+          .select('id, email, full_name, role_id, is_active')
+          .eq('email', email)
+          .single()
+
+        users = legacyFallback.data
+          ? { ...legacyFallback.data, avatar_url: null, monthly_wl_kpi: 0 }
+          : null
+        queryError = legacyFallback.error
+      }
     }
 
     if (queryError || !users) {
@@ -83,6 +96,7 @@ export async function POST(request: NextRequest) {
         id: users.id,
         email: users.email,
         fullName: users.full_name,
+        avatarUrl: users.avatar_url || null,
         role: role?.name || 'member',
         monthlyWlKpi: Number(users.monthly_wl_kpi || 0),
       },

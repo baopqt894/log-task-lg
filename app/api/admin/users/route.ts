@@ -86,6 +86,7 @@ export async function GET(request: NextRequest) {
         id,
         email,
         full_name,
+        avatar_url,
         monthly_wl_kpi,
         is_active,
         created_at,
@@ -101,6 +102,7 @@ export async function GET(request: NextRequest) {
           id,
           email,
           full_name,
+          monthly_wl_kpi,
           is_active,
           created_at,
           role_id,
@@ -110,9 +112,31 @@ export async function GET(request: NextRequest) {
 
       users = (fallback.data || []).map((user: any) => ({
         ...user,
-        monthly_wl_kpi: 0,
+        avatar_url: null,
       }))
       error = fallback.error
+
+      if (error?.code === '42703') {
+        const legacyFallback = await supabase
+          .from('users')
+          .select(`
+            id,
+            email,
+            full_name,
+            is_active,
+            created_at,
+            role_id,
+            roles(name)
+          `)
+          .order('created_at', { ascending: false })
+
+        users = (legacyFallback.data || []).map((user: any) => ({
+          ...user,
+          avatar_url: null,
+          monthly_wl_kpi: 0,
+        }))
+        error = legacyFallback.error
+      }
     }
 
     if (error) throw error

@@ -115,17 +115,35 @@ export async function GET(request: NextRequest) {
     )
     const projectIds = Array.from(new Set((tasks || []).map((task) => task.project_id).filter(Boolean)))
 
-    const [{ data: users }, { data: projects }] = await Promise.all([
+    const [usersResult, { data: projects }] = await Promise.all([
       userIds.length
         ? supabase
             .from('users')
-            .select('id, email, full_name, roles(name)')
+            .select('id, email, full_name, avatar_url, roles(name)')
             .in('id', userIds)
-        : Promise.resolve({ data: [] }),
+        : Promise.resolve({ data: [], error: null }),
       projectIds.length
         ? supabase.from('projects').select('id, name').in('id', projectIds)
         : Promise.resolve({ data: [] }),
     ])
+
+    let users = usersResult.data || []
+    let usersError = usersResult.error
+
+    if (usersError?.code === '42703' && userIds.length) {
+      const fallback = await supabase
+        .from('users')
+        .select('id, email, full_name, roles(name)')
+        .in('id', userIds)
+
+      users = (fallback.data || []).map((user: any) => ({
+        ...user,
+        avatar_url: null,
+      }))
+      usersError = fallback.error
+    }
+
+    if (usersError) throw usersError
 
     const userMap = new Map((users || []).map((item: any) => [item.id, item]))
     const projectMap = new Map((projects || []).map((item: any) => [item.id, item]))
