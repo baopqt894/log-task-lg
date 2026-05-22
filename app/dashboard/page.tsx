@@ -37,56 +37,42 @@ const statusColumns = [
     key: 'pending',
     label: 'PENDING',
     dot: 'bg-slate-500',
-    body: 'bg-slate-50/90',
-    border: 'border-slate-200',
-    count: 'bg-slate-100 text-slate-700',
+    count: 'bg-slate-200 text-slate-700 dark:bg-[#2c333a] dark:text-[#b6c2cf]',
   },
   {
     key: 'in_progress',
     label: 'IN-PROGRESS',
-    dot: 'bg-blue-600',
-    body: 'bg-blue-50/80',
-    border: 'border-blue-200',
-    count: 'bg-blue-100 text-blue-700',
+    dot: 'bg-[#0c66e4]',
+    count: 'bg-slate-200 text-slate-700 dark:bg-[#2c333a] dark:text-[#b6c2cf]',
   },
   {
     key: 'done',
     label: 'DONE',
-    dot: 'bg-green-500',
-    body: 'bg-green-50/80',
-    border: 'border-green-200',
-    count: 'bg-green-100 text-green-700',
+    dot: 'bg-[#22a06b]',
+    count: 'bg-slate-200 text-slate-700 dark:bg-[#2c333a] dark:text-[#b6c2cf]',
   },
   {
     key: 'in_review',
     label: 'IN-REVIEW',
-    dot: 'bg-purple-500',
-    body: 'bg-purple-50/80',
-    border: 'border-purple-200',
-    count: 'bg-purple-100 text-purple-700',
+    dot: 'bg-[#8270db]',
+    count: 'bg-slate-200 text-slate-700 dark:bg-[#2c333a] dark:text-[#b6c2cf]',
   },
   {
     key: 'release',
     label: 'RELEASE',
-    dot: 'bg-teal-600',
-    body: 'bg-teal-50/80',
-    border: 'border-teal-200',
-    count: 'bg-teal-100 text-teal-700',
+    dot: 'bg-[#22a06b]',
+    count: 'bg-slate-200 text-slate-700 dark:bg-[#2c333a] dark:text-[#b6c2cf]',
   },
   {
     key: 'block',
     label: 'BLOCK',
-    dot: 'bg-red-500',
-    body: 'bg-red-50/80',
-    border: 'border-red-200',
-    count: 'bg-red-100 text-red-700',
+    dot: 'bg-[#c9372c]',
+    count: 'bg-slate-200 text-slate-700 dark:bg-[#2c333a] dark:text-[#b6c2cf]',
   },
 ] as const satisfies ReadonlyArray<{
   key: BoardStatus;
   label: string;
   dot: string;
-  body: string;
-  border: string;
   count: string;
 }>;
 
@@ -883,7 +869,7 @@ export default function DashboardPage() {
       )}
 
       {selectedBoard && (
-        <section className="rounded-lg border border-slate-200 bg-white p-5">
+        <section className="rounded-lg border border-slate-200 bg-white p-5 dark:border-[#2c333a] dark:bg-[#1d2125]">
           <div className="mb-4">
             <h2 className="text-lg font-bold text-slate-950">Thông tin bảng: {selectedBoard.name}</h2>
             <p className="mt-1 text-sm text-slate-600">
@@ -936,14 +922,14 @@ export default function DashboardPage() {
                   handleTaskDrop(taskId, column.key);
                 }
               }}
-              className={`overflow-hidden rounded-xl border ${column.border} ${column.body} transition ${
-                dragOverStatus === column.key ? 'ring-2 ring-blue-300 ring-offset-2' : ''
+              className={`overflow-hidden rounded-lg border border-slate-200 bg-[#f4f5f7] transition dark:border-[#2c333a] dark:bg-[#161a1d] ${
+                dragOverStatus === column.key ? 'ring-2 ring-[#0c66e4] ring-offset-2 ring-offset-white dark:ring-[#579dff] dark:ring-offset-[#101214]' : ''
               }`}
             >
-              <div className={`border-b ${column.border} bg-white px-3 py-3`}>
+              <div className="border-b border-slate-200 bg-[#f4f5f7] px-3 py-3 dark:border-[#2c333a] dark:bg-[#161a1d]">
                 <div className="flex items-center gap-2">
                   <div className={`h-3 w-3 rounded-full ${column.dot}`}></div>
-                  <h2 className="text-sm font-bold tracking-wide text-slate-900">{column.label}</h2>
+                  <h2 className="text-sm font-bold tracking-wide text-slate-700 dark:text-[#b6c2cf]">{column.label}</h2>
                   <span className={`ml-auto rounded-full px-2.5 py-1 text-xs font-bold ${column.count}`}>
                     {tasksByStatus[column.key].length}
                   </span>

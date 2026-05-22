@@ -75,19 +75,19 @@ export function TaskCard({
   const getStatusColor = () => {
     switch (normalizedStatus) {
       case 'pending':
-        return 'text-slate-600';
+        return 'text-slate-500 dark:text-[#9fadbc]';
       case 'in_progress':
-        return 'text-blue-600';
+        return 'text-[#0c66e4] dark:text-[#579dff]';
       case 'done':
-        return 'text-green-600';
+        return 'text-[#1f845a] dark:text-[#4bce97]';
       case 'in_review':
-        return 'text-purple-600';
+        return 'text-[#6e5dc6] dark:text-[#9f8fef]';
       case 'release':
-        return 'text-emerald-600';
+        return 'text-[#1f845a] dark:text-[#4bce97]';
       case 'block':
-        return 'text-red-600';
+        return 'text-[#ae2e24] dark:text-[#f87168]';
       default:
-        return 'text-slate-600';
+        return 'text-slate-500 dark:text-[#9fadbc]';
     }
   };
 
@@ -170,14 +170,16 @@ export function TaskCard({
       onContextMenu={onContextMenu}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      className={`rounded-lg border p-3 transition-all duration-200 hover:shadow-md ${
-        isOwnTask ? 'border-blue-200 bg-blue-50/70' : 'border-slate-200 bg-white'
+      className={`rounded-md border p-3 transition-all duration-200 hover:border-slate-300 hover:shadow-sm dark:hover:border-[#454f59] ${
+        isOwnTask
+          ? 'border-[#85b8ff] bg-[#ffffff] ring-1 ring-[#85b8ff]/35 dark:border-[#1d7afc] dark:bg-[#22272b] dark:ring-[#1d7afc]/30'
+          : 'border-slate-200 bg-[#ffffff] dark:border-[#2c333a] dark:bg-[#22272b]'
       } ${
         draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
       } ${
-        isDragging ? 'opacity-50 ring-2 ring-blue-200' : ''
+        isDragging ? 'opacity-50 ring-2 ring-[#85b8ff] dark:ring-[#579dff]' : ''
       } ${
-        isHighlighted ? 'task-card-enter ring-2 ring-emerald-200' : ''
+        isHighlighted ? 'task-card-enter ring-2 ring-[#baf3db] dark:ring-[#4bce97]' : ''
       } ${
         isRemoving ? 'task-card-exit pointer-events-none' : ''
       }`}
@@ -185,26 +187,26 @@ export function TaskCard({
       {/* Project Tag */}
       {task.project && (
         <div className="mb-1.5">
-          <span className="inline-block rounded bg-purple-100 px-2 py-0.5 text-[11px] font-medium text-purple-700">
+          <span className="inline-block rounded bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-[#2c333a] dark:text-[#b6c2cf]">
             {task.project.name}
           </span>
         </div>
       )}
 
       {/* Title */}
-      <h3 className="mb-1.5 line-clamp-2 text-sm font-semibold leading-5 text-slate-900">{task.title}</h3>
+      <h3 className="mb-1.5 line-clamp-2 text-sm font-semibold leading-5 text-slate-900 dark:text-[#dee4ea]">{task.title}</h3>
 
       {/* Description */}
       {task.description && (
-        <p className="mb-2 line-clamp-2 text-xs leading-5 text-slate-600">{task.description}</p>
+        <p className="mb-2 line-clamp-2 text-xs leading-5 text-slate-600 dark:text-[#9fadbc]">{task.description}</p>
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between border-t border-slate-100 pt-2">
+      <div className="flex items-center justify-between border-t border-slate-100 pt-2 dark:border-[#2c333a]">
         {/* Assignee */}
         {task.assignee && (
           <div className="flex items-center">
-            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
+            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#44546f] text-xs font-bold text-white">
               {task.assignee.full_name.charAt(0).toUpperCase()}
             </div>
           </div>
@@ -212,13 +214,13 @@ export function TaskCard({
 
         {/* Due Date */}
         {task.due_date && (
-          <div className="flex items-center gap-1 text-xs text-slate-500">
+          <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-[#9fadbc]">
             <Calendar className="w-3 h-3" />
             <span>{new Date(task.due_date).toLocaleDateString('vi-VN')}</span>
           </div>
         )}
 
-        <div className="text-xs font-semibold text-slate-700">
+        <div className="text-xs font-semibold text-slate-700 dark:text-[#b6c2cf]">
           {formatWl(Number(task.quantity || 0))} WL
         </div>
       </div>
@@ -250,7 +252,7 @@ export function TaskCard({
               event.stopPropagation();
               onEdit();
             }}
-            className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+            className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-[#2c333a] dark:text-[#b6c2cf] dark:hover:bg-[#2c333a]"
           >
             <Pencil className="h-3.5 w-3.5" />
             Sửa

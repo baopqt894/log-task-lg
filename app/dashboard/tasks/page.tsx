@@ -75,14 +75,14 @@ const statusLabels: Record<string, string> = {
 };
 
 const statusClasses: Record<string, string> = {
-  pending: 'bg-slate-100 text-slate-700',
-  not_started: 'bg-slate-100 text-slate-700',
-  in_progress: 'bg-blue-100 text-blue-700',
-  done: 'bg-green-100 text-green-700',
-  completed: 'bg-green-100 text-green-700',
-  in_review: 'bg-purple-100 text-purple-700',
-  release: 'bg-emerald-100 text-emerald-700',
-  block: 'bg-red-100 text-red-700',
+  pending: 'bg-slate-100 text-slate-600 dark:bg-[#2c333a] dark:text-[#b6c2cf]',
+  not_started: 'bg-slate-100 text-slate-600 dark:bg-[#2c333a] dark:text-[#b6c2cf]',
+  in_progress: 'bg-[#e9f2ff] text-[#0c66e4] dark:bg-[#1c2b41] dark:text-[#579dff]',
+  done: 'bg-[#dcfff1] text-[#1f845a] dark:bg-[#1c3329] dark:text-[#4bce97]',
+  completed: 'bg-[#dcfff1] text-[#1f845a] dark:bg-[#1c3329] dark:text-[#4bce97]',
+  in_review: 'bg-[#f3f0ff] text-[#6e5dc6] dark:bg-[#2b244d] dark:text-[#9f8fef]',
+  release: 'bg-[#dcfff1] text-[#1f845a] dark:bg-[#1c3329] dark:text-[#4bce97]',
+  block: 'bg-[#ffeceb] text-[#ae2e24] dark:bg-[#42221f] dark:text-[#f87168]',
 };
 
 const TASKS_PER_PAGE = 10;
