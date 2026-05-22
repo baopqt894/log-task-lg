@@ -426,7 +426,7 @@ export default function TasksPage() {
                       </td>
                       <td className="px-5 py-4">
                         <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                          className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${
                             statusClasses[task.status] || 'bg-slate-100 text-slate-700'
                           }`}
                         >
