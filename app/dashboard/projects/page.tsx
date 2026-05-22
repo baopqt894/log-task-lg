@@ -6,6 +6,8 @@ import { useAuth } from '@/hooks/use-auth';
 import {
   Calendar,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   CheckCircle2,
   Grid3X3,
   List,
@@ -33,6 +35,8 @@ const projectStatusOptions: Array<{ value: ProjectStatus; label: string }> = [
   { value: 'paused', label: 'Tạm dừng' },
   { value: 'completed', label: 'Hoàn thành' },
 ];
+
+const PROJECTS_PER_PAGE = 9;
 
 const statusConfig = {
   running: {
@@ -78,6 +82,7 @@ export default function ProjectsPage() {
   const [creatingProject, setCreatingProject] = useState(false);
   const [updatingProjectId, setUpdatingProjectId] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | ProjectStatus>('all');
+  const [currentPage, setCurrentPage] = useState(1);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -134,6 +139,7 @@ export default function ProjectsPage() {
 
       if (response.ok) {
         fetchProjects();
+        setCurrentPage(1);
         setShowCreateForm(false);
         setFormData({ name: '', description: '', status: 'running' });
         toast({
@@ -214,6 +220,32 @@ export default function ProjectsPage() {
     const source = projects.map(getDerivedProject);
     return filter === 'all' ? source : source.filter((project) => project.status === filter);
   }, [filter, projects]);
+  const totalPages = Math.max(1, Math.ceil(displayProjects.length / PROJECTS_PER_PAGE));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedProjects = useMemo(() => {
+    const start = (safeCurrentPage - 1) * PROJECTS_PER_PAGE;
+    return displayProjects.slice(start, start + PROJECTS_PER_PAGE);
+  }, [safeCurrentPage, displayProjects]);
+  const pageNumbers = useMemo(() => {
+    const maxVisiblePages = 5;
+    const startPage = Math.max(
+      1,
+      Math.min(safeCurrentPage - Math.floor(maxVisiblePages / 2), totalPages - maxVisiblePages + 1)
+    );
+    const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+    return Array.from({ length: endPage - startPage + 1 }, (_, index) => startPage + index);
+  }, [safeCurrentPage, totalPages]);
+  const pageStart = displayProjects.length === 0 ? 0 : (safeCurrentPage - 1) * PROJECTS_PER_PAGE + 1;
+  const pageEnd = Math.min(safeCurrentPage * PROJECTS_PER_PAGE, displayProjects.length);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter]);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
 
   if (authLoading || user?.role !== 'admin') {
     return null;
@@ -349,75 +381,120 @@ export default function ProjectsPage() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          {displayProjects.map((project) => {
-            const config = statusConfig[project.status];
-            return (
-              <article
-                key={project.id}
-                className="min-h-[260px] rounded-lg border border-slate-300 bg-white p-5 shadow-sm"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <label
-                    className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-semibold ${config.badge}`}
+        <>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            {paginatedProjects.map((project) => {
+              const config = statusConfig[project.status];
+              return (
+                <article
+                  key={project.id}
+                  className="min-h-[260px] rounded-lg border border-slate-300 bg-white p-5 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <label
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-semibold ${config.badge}`}
+                    >
+                      <span className={`h-2 w-2 rounded-full ${config.dot}`} />
+                      <span className="relative inline-flex items-center">
+                        <select
+                          aria-label={`Trạng thái dự án ${project.name}`}
+                          value={project.status}
+                          disabled={updatingProjectId === project.id}
+                          onChange={(event) =>
+                            handleStatusChange(project.id, event.target.value as ProjectStatus)
+                          }
+                          className="cursor-pointer appearance-none bg-transparent pr-6 font-semibold outline-none disabled:cursor-wait disabled:opacity-70"
+                        >
+                          {projectStatusOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="pointer-events-none absolute right-0 h-4 w-4" />
+                      </span>
+                      {updatingProjectId === project.id && (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      )}
+                    </label>
+                  </div>
+
+                  <h2 className="mt-7 line-clamp-2 text-xl font-bold text-slate-950">
+                    {project.name}
+                  </h2>
+                  <p className="mt-3 line-clamp-2 min-h-12 text-base leading-6 text-slate-600">
+                    {project.description}
+                  </p>
+
+                  <div className="mt-10 border-t border-slate-100 pt-5 flex items-center justify-between">
+                    <div className="flex -space-x-2">
+                      {project.members.map((color, index) => (
+                        <div
+                          key={`${project.id}-${color}-${index}`}
+                          className="h-8 w-8 rounded-full border-2 border-white"
+                          style={{
+                            background: `radial-gradient(circle at 35% 30%, #fff 0 8%, ${color} 9% 100%)`,
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                      {project.status === 'completed' ? (
+                        <CheckCircle2 className="w-4 h-4" />
+                      ) : (
+                        <Calendar className="w-4 h-4" />
+                      )}
+                      {project.dueLabel}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          {displayProjects.length > PROJECTS_PER_PAGE && (
+            <div className="flex flex-col gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-slate-600">
+                Hiển thị {pageStart}-{pageEnd} / {displayProjects.length} dự án
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={safeCurrentPage === 1}
+                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Trước
+                </button>
+                {pageNumbers.map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    aria-current={safeCurrentPage === page ? 'page' : undefined}
+                    onClick={() => setCurrentPage(page)}
+                    className={`h-10 min-w-10 rounded-lg px-3 text-sm font-semibold ${
+                      safeCurrentPage === page
+                        ? 'bg-[#0b4d7f] text-white'
+                        : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
                   >
-                    <span className={`h-2 w-2 rounded-full ${config.dot}`} />
-                    <span className="relative inline-flex items-center">
-                      <select
-                        aria-label={`Trạng thái dự án ${project.name}`}
-                        value={project.status}
-                        disabled={updatingProjectId === project.id}
-                        onChange={(event) =>
-                          handleStatusChange(project.id, event.target.value as ProjectStatus)
-                        }
-                        className="cursor-pointer appearance-none bg-transparent pr-6 font-semibold outline-none disabled:cursor-wait disabled:opacity-70"
-                      >
-                        {projectStatusOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="pointer-events-none absolute right-0 h-4 w-4" />
-                    </span>
-                    {updatingProjectId === project.id && (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    )}
-                  </label>
-                </div>
-
-                <h2 className="mt-7 line-clamp-2 text-xl font-bold text-slate-950">
-                  {project.name}
-                </h2>
-                <p className="mt-3 line-clamp-2 min-h-12 text-base leading-6 text-slate-600">
-                  {project.description}
-                </p>
-
-                <div className="mt-10 border-t border-slate-100 pt-5 flex items-center justify-between">
-                  <div className="flex -space-x-2">
-                    {project.members.map((color, index) => (
-                      <div
-                        key={`${project.id}-${color}-${index}`}
-                        className="h-8 w-8 rounded-full border-2 border-white"
-                        style={{
-                          background: `radial-gradient(circle at 35% 30%, #fff 0 8%, ${color} 9% 100%)`,
-                        }}
-                      />
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                    {project.status === 'completed' ? (
-                      <CheckCircle2 className="w-4 h-4" />
-                    ) : (
-                      <Calendar className="w-4 h-4" />
-                    )}
-                    {project.dueLabel}
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </div>
+                    {page}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  disabled={safeCurrentPage === totalPages}
+                  onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Sau
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

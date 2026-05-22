@@ -1,12 +1,17 @@
 'use client';
 
-import { useState } from 'react';
-import { X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Check, Search, X } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 
+interface ProjectOption {
+  id: string;
+  name: string;
+}
+
 interface CreateTaskModalProps {
-  projects: any[];
+  projects: ProjectOption[];
   boards?: Array<{ id: string; name: string }>;
   selectedBoardId?: string;
   task?: {
@@ -23,6 +28,14 @@ interface CreateTaskModalProps {
   onSuccess: () => void;
 }
 
+function normalizeSearchValue(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim();
+}
+
 export function CreateTaskModal({
   projects,
   boards = [],
@@ -36,6 +49,9 @@ export function CreateTaskModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const isEditing = Boolean(task);
+  const initialProject = projects.find((project) => project.id === task?.project_id);
+  const [projectSearch, setProjectSearch] = useState(initialProject?.name || '');
+  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
   const [formData, setFormData] = useState({
     title: task?.title || '',
     description: task?.description || '',
@@ -45,6 +61,27 @@ export function CreateTaskModal({
     status: task?.status || 'pending',
     due_date: task?.due_date || new Date().toISOString().slice(0, 10),
   });
+  const selectedProject = useMemo(
+    () => projects.find((project) => project.id === formData.projectId) || null,
+    [formData.projectId, projects]
+  );
+
+  useEffect(() => {
+    if (!projectDropdownOpen) {
+      setProjectSearch(selectedProject?.name || '');
+    }
+  }, [projectDropdownOpen, selectedProject?.name]);
+
+  const normalizedProjectSearch = normalizeSearchValue(projectSearch);
+  const filteredProjects = useMemo(() => {
+    if (!normalizedProjectSearch) {
+      return projects.slice(0, 8);
+    }
+
+    return projects
+      .filter((project) => normalizeSearchValue(project.name).includes(normalizedProjectSearch))
+      .slice(0, 8);
+  }, [normalizedProjectSearch, projects]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,6 +94,11 @@ export function CreateTaskModal({
 
     if (!formData.boardId) {
       setError('Vui lòng chọn bảng công việc.');
+      return;
+    }
+
+    if (!formData.projectId) {
+      setError('Vui lòng chọn dự án.');
       return;
     }
 
@@ -192,19 +234,60 @@ export function CreateTaskModal({
               <label className="block text-sm font-medium text-slate-900 mb-2">
                 Dự án <span className="text-red-500">*</span>
               </label>
-              <select
-                required
-                value={formData.projectId}
-                onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-              >
-                <option value="">Chọn dự án</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  required
+                  value={projectDropdownOpen ? projectSearch : selectedProject?.name || projectSearch}
+                  onFocus={() => {
+                    setProjectSearch(selectedProject?.name || projectSearch);
+                    setProjectDropdownOpen(true);
+                  }}
+                  onBlur={() => {
+                    window.setTimeout(() => {
+                      setProjectDropdownOpen(false);
+                      setProjectSearch(selectedProject?.name || '');
+                    }, 120);
+                  }}
+                  onChange={(e) => {
+                    const nextSearch = e.target.value;
+                    setProjectSearch(nextSearch);
+                    setProjectDropdownOpen(true);
+                    if (selectedProject && nextSearch !== selectedProject.name) {
+                      setFormData({ ...formData, projectId: '' });
+                    }
+                  }}
+                  placeholder="Tìm dự án"
+                  className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 outline-none focus:border-transparent focus:ring-2 focus:ring-blue-500"
+                />
+                {projectDropdownOpen && (
+                  <div className="absolute z-20 mt-2 max-h-56 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+                    {filteredProjects.length > 0 ? (
+                      filteredProjects.map((project) => (
+                        <button
+                          key={project.id}
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => {
+                            setFormData({ ...formData, projectId: project.id });
+                            setProjectSearch(project.name);
+                            setProjectDropdownOpen(false);
+                          }}
+                          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                        >
+                          <span className="line-clamp-1">{project.name}</span>
+                          {formData.projectId === project.id && (
+                            <Check className="h-4 w-4 shrink-0 text-blue-600" />
+                          )}
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-3 py-3 text-sm text-slate-500">Không tìm thấy dự án</div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
