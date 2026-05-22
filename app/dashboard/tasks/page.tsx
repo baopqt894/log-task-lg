@@ -1,7 +1,18 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle, Clock, Download, Pencil, Plus, Rocket, Search } from 'lucide-react';
+import {
+  AlertCircle,
+  CheckCircle,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Download,
+  Pencil,
+  Plus,
+  Rocket,
+  Search,
+} from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { CreateTaskModal } from '@/components/create-task-modal';
 import { downloadXlsxFile } from '@/lib/export-xlsx';
@@ -74,6 +85,8 @@ const statusClasses: Record<string, string> = {
   block: 'bg-red-100 text-red-700',
 };
 
+const TASKS_PER_PAGE = 10;
+
 function formatDate(value?: string | null) {
   if (!value) return '-';
   return new Date(value).toLocaleDateString('vi-VN');
@@ -114,6 +127,7 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBoardId, setSelectedBoardId] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     if (authLoading) return;
@@ -194,6 +208,32 @@ export default function TasksPage() {
         .includes(query);
     });
   }, [projectMap, searchTerm, tasks, user?.fullName, userMap]);
+  const totalPages = Math.max(1, Math.ceil(filteredTasks.length / TASKS_PER_PAGE));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedTasks = useMemo(() => {
+    const start = (safeCurrentPage - 1) * TASKS_PER_PAGE;
+    return filteredTasks.slice(start, start + TASKS_PER_PAGE);
+  }, [filteredTasks, safeCurrentPage]);
+  const pageNumbers = useMemo(() => {
+    const maxVisiblePages = 5;
+    const startPage = Math.max(
+      1,
+      Math.min(safeCurrentPage - Math.floor(maxVisiblePages / 2), totalPages - maxVisiblePages + 1)
+    );
+    const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+    return Array.from({ length: endPage - startPage + 1 }, (_, index) => startPage + index);
+  }, [safeCurrentPage, totalPages]);
+  const pageStart = filteredTasks.length === 0 ? 0 : (safeCurrentPage - 1) * TASKS_PER_PAGE + 1;
+  const pageEnd = Math.min(safeCurrentPage * TASKS_PER_PAGE, filteredTasks.length);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedBoardId]);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
 
   const stats = useMemo(() => {
     const rawWl = tasks.reduce((sum, task) => sum + Number(task.quantity || 0), 0);
@@ -357,7 +397,7 @@ export default function TasksPage() {
                   </td>
                 </tr>
               ) : (
-                filteredTasks.map((task) => {
+                paginatedTasks.map((task) => {
                   const ownerId = getTaskOwnerId(task);
                   const owner = getTaskOwner(task);
                   const ownerName =
@@ -416,6 +456,48 @@ export default function TasksPage() {
             </tbody>
           </table>
         </div>
+        {!loading && filteredTasks.length > TASKS_PER_PAGE && (
+          <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-slate-600">
+              Hiển thị {pageStart}-{pageEnd} / {filteredTasks.length} tác vụ
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={safeCurrentPage === 1}
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Trước
+              </button>
+              {pageNumbers.map((page) => (
+                <button
+                  key={page}
+                  type="button"
+                  aria-current={safeCurrentPage === page ? 'page' : undefined}
+                  onClick={() => setCurrentPage(page)}
+                  className={`h-10 min-w-10 rounded-lg px-3 text-sm font-semibold ${
+                    safeCurrentPage === page
+                      ? 'bg-[#0b4d7f] text-white'
+                      : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                type="button"
+                disabled={safeCurrentPage === totalPages}
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Sau
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       {(showCreateModal || editingTask) && (
