@@ -33,18 +33,61 @@ type TaskStatus =
 type BoardStatus = 'pending' | 'in_progress' | 'done' | 'in_review' | 'release' | 'block';
 
 const statusColumns = [
-  { key: 'pending', label: 'PENDING', dot: 'bg-slate-400', header: 'bg-slate-50 border-slate-200', border: 'border-slate-200' },
-  { key: 'in_progress', label: 'IN-PROGRESS', dot: 'bg-blue-600', header: 'bg-blue-50 border-blue-200', border: 'border-blue-200' },
-  { key: 'done', label: 'DONE', dot: 'bg-green-500', header: 'bg-green-50 border-green-200', border: 'border-green-200' },
-  { key: 'in_review', label: 'IN-REVIEW', dot: 'bg-purple-500', header: 'bg-purple-50 border-purple-200', border: 'border-purple-200' },
-  { key: 'release', label: 'RELEASE', dot: 'bg-emerald-600', header: 'bg-emerald-50 border-emerald-200', border: 'border-emerald-200' },
-  { key: 'block', label: 'BLOCK', dot: 'bg-red-500', header: 'bg-red-50 border-red-200', border: 'border-red-200' },
+  {
+    key: 'pending',
+    label: 'PENDING',
+    dot: 'bg-slate-500',
+    body: 'bg-slate-50/90',
+    border: 'border-slate-200',
+    count: 'bg-slate-100 text-slate-700',
+  },
+  {
+    key: 'in_progress',
+    label: 'IN-PROGRESS',
+    dot: 'bg-blue-600',
+    body: 'bg-blue-50/80',
+    border: 'border-blue-200',
+    count: 'bg-blue-100 text-blue-700',
+  },
+  {
+    key: 'done',
+    label: 'DONE',
+    dot: 'bg-green-500',
+    body: 'bg-green-50/80',
+    border: 'border-green-200',
+    count: 'bg-green-100 text-green-700',
+  },
+  {
+    key: 'in_review',
+    label: 'IN-REVIEW',
+    dot: 'bg-purple-500',
+    body: 'bg-purple-50/80',
+    border: 'border-purple-200',
+    count: 'bg-purple-100 text-purple-700',
+  },
+  {
+    key: 'release',
+    label: 'RELEASE',
+    dot: 'bg-teal-600',
+    body: 'bg-teal-50/80',
+    border: 'border-teal-200',
+    count: 'bg-teal-100 text-teal-700',
+  },
+  {
+    key: 'block',
+    label: 'BLOCK',
+    dot: 'bg-red-500',
+    body: 'bg-red-50/80',
+    border: 'border-red-200',
+    count: 'bg-red-100 text-red-700',
+  },
 ] as const satisfies ReadonlyArray<{
   key: BoardStatus;
   label: string;
   dot: string;
-  header: string;
+  body: string;
   border: string;
+  count: string;
 }>;
 
 function normalizeStatus(status: TaskStatus) {
@@ -893,22 +936,24 @@ export default function DashboardPage() {
                   handleTaskDrop(taskId, column.key);
                 }
               }}
-              className={`bg-white rounded-lg border ${column.border} overflow-hidden transition ${
+              className={`overflow-hidden rounded-xl border ${column.border} ${column.body} transition ${
                 dragOverStatus === column.key ? 'ring-2 ring-blue-300 ring-offset-2' : ''
               }`}
             >
-              <div className={`p-3 border-b ${column.header}`}>
+              <div className={`border-b ${column.border} bg-white px-3 py-3`}>
                 <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${column.dot}`}></div>
-                  <h2 className="font-semibold text-slate-900">{column.label}</h2>
-                  <span className="ml-auto text-sm text-slate-600 bg-white px-2 py-1 rounded">
+                  <div className={`h-3 w-3 rounded-full ${column.dot}`}></div>
+                  <h2 className="text-sm font-bold tracking-wide text-slate-900">{column.label}</h2>
+                  <span className={`ml-auto rounded-full px-2.5 py-1 text-xs font-bold ${column.count}`}>
                     {tasksByStatus[column.key].length}
                   </span>
                 </div>
               </div>
               <div className="h-[calc(100vh-340px)] min-h-[520px] max-h-[680px] space-y-2.5 overflow-y-auto p-3">
                 {tasksByStatus[column.key].length === 0 ? (
-                  <p className="text-sm text-slate-500 text-center py-8">Không có tác vụ</p>
+                  <div className="flex h-full min-h-80 items-center justify-center">
+                    <p className="text-sm font-semibold text-slate-400">Không có tác vụ</p>
+                  </div>
                 ) : (
                   tasksByStatus[column.key].map((task) => (
                     <TaskCard

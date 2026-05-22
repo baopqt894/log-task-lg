@@ -3,8 +3,8 @@
 import { SidebarWithUser } from '@/components/sidebar';
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-import { Bell, RotateCcw, Search } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Bell, PanelLeftClose, PanelLeftOpen, RotateCcw, Search } from 'lucide-react';
 
 export default function DashboardLayout({
   children,
@@ -13,6 +13,7 @@ export default function DashboardLayout({
 }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -38,9 +39,25 @@ export default function DashboardLayout({
 
   return (
     <div className="flex h-screen bg-[#f4f7fb]">
-      <SidebarWithUser user={user} loading={loading} />
-      <main className="flex-1 ml-64 overflow-auto">
-        <header className="h-[68px] border-b border-slate-200 bg-white/90 backdrop-blur flex items-center justify-end px-6">
+      <SidebarWithUser user={user} loading={loading} collapsed={sidebarCollapsed} />
+      <main
+        className={`flex-1 overflow-auto transition-[margin] duration-200 ${
+          sidebarCollapsed ? 'ml-20' : 'ml-64'
+        }`}
+      >
+        <header className="flex h-[68px] items-center justify-between border-b border-slate-200 bg-white/90 px-6 backdrop-blur">
+          <button
+            type="button"
+            onClick={() => setSidebarCollapsed((current) => !current)}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 hover:text-[#0b4d7f]"
+            aria-label={sidebarCollapsed ? 'Mở sidebar' : 'Đóng sidebar'}
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen className="h-5 w-5" />
+            ) : (
+              <PanelLeftClose className="h-5 w-5" />
+            )}
+          </button>
           <div className="flex items-center gap-6">
             <div className="relative w-[360px]">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
