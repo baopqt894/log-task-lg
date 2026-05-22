@@ -12,6 +12,7 @@ import {
   Grid3X3,
   List,
   Loader2,
+  Pencil,
   Plus,
   SlidersHorizontal,
 } from 'lucide-react';
@@ -79,11 +80,12 @@ export default function ProjectsPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
-  const [creatingProject, setCreatingProject] = useState(false);
+  const [savingProject, setSavingProject] = useState(false);
   const [updatingProjectId, setUpdatingProjectId] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | ProjectStatus>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -128,42 +130,80 @@ export default function ProjectsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setCreatingProject(true);
+    setSavingProject(true);
+    const isEditing = Boolean(editingProject);
     try {
-      const response = await fetch('/api/projects', {
-        method: 'POST',
+      const response = await fetch(isEditing ? `/api/projects/${editingProject!.id}` : '/api/projects', {
+        method: isEditing ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
       const data = await response.json().catch(() => null);
 
       if (response.ok) {
-        fetchProjects();
+        if (data?.project) {
+          setProjects((current) => {
+            if (!isEditing) return [data.project, ...current];
+
+            return current.map((project) =>
+              project.id === data.project.id ? data.project : project
+            );
+          });
+        } else {
+          fetchProjects();
+        }
         setCurrentPage(1);
         setShowCreateForm(false);
+        setEditingProject(null);
         setFormData({ name: '', description: '', status: 'running' });
         toast({
-          title: 'Đã tạo dự án',
+          title: isEditing ? 'Đã cập nhật dự án' : 'Đã tạo dự án',
           description: formData.name,
         });
         return;
       }
 
       toast({
-        title: 'Không tạo được dự án',
+        title: isEditing ? 'Không cập nhật được dự án' : 'Không tạo được dự án',
         description: data?.message || 'Vui lòng kiểm tra lại thông tin.',
         variant: 'destructive',
       });
     } catch (error) {
-      console.error('Error creating project:', error);
+      console.error('Error saving project:', error);
       toast({
-        title: 'Không tạo được dự án',
+        title: isEditing ? 'Không cập nhật được dự án' : 'Không tạo được dự án',
         description: 'Có lỗi khi kết nối server.',
         variant: 'destructive',
       });
     } finally {
-      setCreatingProject(false);
+      setSavingProject(false);
     }
+  };
+
+  const resetProjectForm = () => {
+    setShowCreateForm(false);
+    setEditingProject(null);
+    setFormData({ name: '', description: '', status: 'running' });
+  };
+
+  const startCreateProject = () => {
+    setEditingProject(null);
+    setFormData({ name: '', description: '', status: 'running' });
+    setShowCreateForm(true);
+  };
+
+  const startEditProject = (project: Project) => {
+    const status = projectStatusOptions.some((option) => option.value === project.status)
+      ? project.status as ProjectStatus
+      : 'running';
+
+    setEditingProject(project);
+    setFormData({
+      name: project.name || '',
+      description: project.description || '',
+      status,
+    });
+    setShowCreateForm(true);
   };
 
   const handleStatusChange = async (projectId: string, status: ProjectStatus) => {
@@ -266,7 +306,7 @@ export default function ProjectsPage() {
             Bộ lọc
           </button>
           <button
-            onClick={() => setShowCreateForm(true)}
+            onClick={startCreateProject}
             className="flex h-11 items-center gap-2 rounded-lg bg-[#063b63] px-5 text-sm font-semibold text-white hover:bg-[#052f4f]"
           >
             <Plus className="w-4 h-4" />
@@ -277,6 +317,11 @@ export default function ProjectsPage() {
 
       {showCreateForm && (
         <div className="rounded-lg border border-slate-200 bg-white p-6">
+          <div className="mb-4">
+            <h2 className="text-lg font-bold text-slate-950">
+              {editingProject ? 'Chỉnh sửa dự án' : 'Tạo dự án mới'}
+            </h2>
+          </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div>
@@ -317,19 +362,21 @@ export default function ProjectsPage() {
             <div className="flex justify-end gap-3">
               <button
                 type="button"
-                onClick={() => setShowCreateForm(false)}
-                disabled={creatingProject}
+                onClick={resetProjectForm}
+                disabled={savingProject}
                 className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Hủy
               </button>
               <button
                 type="submit"
-                disabled={creatingProject}
+                disabled={savingProject}
                 className="inline-flex items-center gap-2 rounded-lg bg-[#063b63] px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {creatingProject && <Loader2 className="h-4 w-4 animate-spin" />}
-                {creatingProject ? 'Đang tạo...' : 'Tạo'}
+                {savingProject && <Loader2 className="h-4 w-4 animate-spin" />}
+                {savingProject
+                  ? editingProject ? 'Đang lưu...' : 'Đang tạo...'
+                  : editingProject ? 'Lưu thay đổi' : 'Tạo'}
               </button>
             </div>
           </form>
@@ -417,6 +464,14 @@ export default function ProjectsPage() {
                         <Loader2 className="h-4 w-4 animate-spin" />
                       )}
                     </label>
+                    <button
+                      type="button"
+                      onClick={() => startEditProject(project)}
+                      className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Sửa
+                    </button>
                   </div>
 
                   <h2 className="mt-7 line-clamp-2 text-xl font-bold text-slate-950">

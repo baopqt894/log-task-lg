@@ -906,7 +906,7 @@ export default function DashboardPage() {
                   </span>
                 </div>
               </div>
-              <div className="h-[calc(100vh-420px)] min-h-[300px] max-h-[430px] space-y-3 overflow-y-auto p-3">
+              <div className="h-[calc(100vh-340px)] min-h-[520px] max-h-[680px] space-y-2.5 overflow-y-auto p-3">
                 {tasksByStatus[column.key].length === 0 ? (
                   <p className="text-sm text-slate-500 text-center py-8">Không có tác vụ</p>
                 ) : (

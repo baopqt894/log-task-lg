@@ -170,7 +170,7 @@ export function TaskCard({
       onContextMenu={onContextMenu}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      className={`rounded-lg border p-5 transition-all duration-200 hover:shadow-md ${
+      className={`rounded-lg border p-3 transition-all duration-200 hover:shadow-md ${
         isOwnTask ? 'border-blue-200 bg-blue-50/70' : 'border-slate-200 bg-white'
       } ${
         draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
@@ -184,27 +184,27 @@ export function TaskCard({
     >
       {/* Project Tag */}
       {task.project && (
-        <div className="mb-2">
-          <span className="inline-block px-2 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded">
+        <div className="mb-1.5">
+          <span className="inline-block rounded bg-purple-100 px-2 py-0.5 text-[11px] font-medium text-purple-700">
             {task.project.name}
           </span>
         </div>
       )}
 
       {/* Title */}
-      <h3 className="font-semibold text-slate-900 mb-2 line-clamp-2 text-lg">{task.title}</h3>
+      <h3 className="mb-1.5 line-clamp-2 text-sm font-semibold leading-5 text-slate-900">{task.title}</h3>
 
       {/* Description */}
       {task.description && (
-        <p className="text-sm text-slate-600 mb-4 line-clamp-3">{task.description}</p>
+        <p className="mb-2 line-clamp-2 text-xs leading-5 text-slate-600">{task.description}</p>
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+      <div className="flex items-center justify-between border-t border-slate-100 pt-2">
         {/* Assignee */}
         {task.assignee && (
           <div className="flex items-center">
-            <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
+            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
               {task.assignee.full_name.charAt(0).toUpperCase()}
             </div>
           </div>
@@ -224,7 +224,7 @@ export function TaskCard({
       </div>
 
       {/* Status Indicator */}
-      <div className="mt-4 flex items-center justify-between gap-2">
+      <div className="mt-2 flex items-center justify-between gap-2">
         {canEdit ? (
           <button
             onClick={(event) => {
