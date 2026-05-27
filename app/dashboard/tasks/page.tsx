@@ -207,6 +207,16 @@ export default function TasksPage() {
     () => projects.filter((project) => selectedProjectIds.includes(project.id)),
     [projects, selectedProjectIds]
   );
+  const sortedProjectOptions = useMemo(
+    () =>
+      [...projects].sort((a, b) =>
+        a.name.localeCompare(b.name, 'vi', {
+          numeric: true,
+          sensitivity: 'base',
+        })
+      ),
+    [projects]
+  );
 
   useEffect(() => {
     if (!projectFilterOpen) {
@@ -217,13 +227,13 @@ export default function TasksPage() {
   const normalizedProjectFilterSearch = normalizeSearchValue(projectFilterSearch);
   const filteredProjectOptions = useMemo(() => {
     if (!normalizedProjectFilterSearch) {
-      return projects.slice(0, 8);
+      return sortedProjectOptions;
     }
 
-    return projects
-      .filter((project) => normalizeSearchValue(project.name).includes(normalizedProjectFilterSearch))
-      .slice(0, 8);
-  }, [normalizedProjectFilterSearch, projects]);
+    return sortedProjectOptions.filter((project) =>
+      normalizeSearchValue(project.name).includes(normalizedProjectFilterSearch)
+    );
+  }, [normalizedProjectFilterSearch, sortedProjectOptions]);
 
   const toggleProjectFilter = (projectId: string) => {
     setSelectedProjectIds((current) =>
@@ -561,14 +571,14 @@ export default function TasksPage() {
             {selectedProjects.map((project) => (
               <span
                 key={project.id}
-                className="inline-flex h-8 max-w-full items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 pl-3 pr-1 text-xs font-semibold text-blue-700"
+                className="inline-flex h-8 max-w-full items-center gap-1.5 rounded-full border border-blue-700 bg-blue-600 pl-3 pr-1 text-xs font-semibold text-white shadow-sm"
               >
                 <span className="max-w-[220px] truncate">{project.name}</span>
                 <button
                   type="button"
                   aria-label={`Bỏ chọn dự án ${project.name}`}
                   onClick={() => setSelectedProjectIds((current) => current.filter((id) => id !== project.id))}
-                  className="inline-flex h-6 w-6 items-center justify-center rounded-full text-blue-500 hover:bg-blue-100 hover:text-blue-700"
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-full text-white/85 hover:bg-white/20 hover:text-white"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
