@@ -127,18 +127,20 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBoardId, setSelectedBoardId] = useState('');
+  const [selectedProjectId, setSelectedProjectId] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     if (authLoading) return;
     fetchData();
-  }, [authLoading, user?.role, selectedBoardId]);
+  }, [authLoading, user?.role, selectedBoardId, selectedProjectId]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
       const taskParams = new URLSearchParams();
       if (selectedBoardId) taskParams.set('boardId', selectedBoardId);
+      if (selectedProjectId) taskParams.set('projectId', selectedProjectId);
       if (user?.role !== 'admin') taskParams.set('scope', 'mine');
       const requests = [
         fetch(`/api/tasks${taskParams.toString() ? `?${taskParams}` : ''}`),
@@ -229,7 +231,7 @@ export default function TasksPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedBoardId]);
+  }, [searchTerm, selectedBoardId, selectedProjectId]);
 
   useEffect(() => {
     setCurrentPage((page) => Math.min(page, totalPages));
@@ -251,6 +253,8 @@ export default function TasksPage() {
   }, [tasks]);
 
   const exportTaskJournal = () => {
+    if (!user) return;
+
     const headers = [
       'Task ID',
       'Task Date',
@@ -339,6 +343,18 @@ export default function TasksPage() {
           {boards.map((board) => (
             <option key={board.id} value={board.id}>
               {board.name}
+            </option>
+          ))}
+        </select>
+        <select
+          value={selectedProjectId}
+          onChange={(event) => setSelectedProjectId(event.target.value)}
+          className="h-11 min-w-[220px] rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+        >
+          <option value="">Tất cả dự án</option>
+          {projects.map((project) => (
+            <option key={project.id} value={project.id}>
+              {project.name}
             </option>
           ))}
         </select>
