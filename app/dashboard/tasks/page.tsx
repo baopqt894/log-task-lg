@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
+  Check,
   CheckCircle,
   ChevronLeft,
   ChevronRight,
@@ -12,6 +13,7 @@ import {
   Plus,
   Rocket,
   Search,
+  X,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { CreateTaskModal } from '@/components/create-task-modal';
@@ -87,6 +89,14 @@ const statusClasses: Record<string, string> = {
 
 const TASKS_PER_PAGE = 10;
 
+function normalizeSearchValue(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim();
+}
+
 function formatDate(value?: string | null) {
   if (!value) return '-';
   return new Date(value).toLocaleDateString('vi-VN');
@@ -128,6 +138,8 @@ export default function TasksPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBoardId, setSelectedBoardId] = useState('');
   const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [projectFilterSearch, setProjectFilterSearch] = useState('');
+  const [projectFilterOpen, setProjectFilterOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
@@ -174,6 +186,27 @@ export default function TasksPage() {
     () => new Map(projects.map((project) => [project.id, project.name])),
     [projects]
   );
+  const selectedProject = useMemo(
+    () => projects.find((project) => project.id === selectedProjectId) || null,
+    [projects, selectedProjectId]
+  );
+
+  useEffect(() => {
+    if (!projectFilterOpen) {
+      setProjectFilterSearch(selectedProject?.name || '');
+    }
+  }, [projectFilterOpen, selectedProject?.name]);
+
+  const normalizedProjectFilterSearch = normalizeSearchValue(projectFilterSearch);
+  const filteredProjectOptions = useMemo(() => {
+    if (!normalizedProjectFilterSearch) {
+      return projects.slice(0, 8);
+    }
+
+    return projects
+      .filter((project) => normalizeSearchValue(project.name).includes(normalizedProjectFilterSearch))
+      .slice(0, 8);
+  }, [normalizedProjectFilterSearch, projects]);
 
   const userMap = useMemo(
     () => new Map(users.map((item) => [item.id, item.full_name || item.email])),
@@ -346,18 +379,91 @@ export default function TasksPage() {
             </option>
           ))}
         </select>
-        <select
-          value={selectedProjectId}
-          onChange={(event) => setSelectedProjectId(event.target.value)}
-          className="h-11 min-w-[220px] rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-        >
-          <option value="">Tất cả dự án</option>
-          {projects.map((project) => (
-            <option key={project.id} value={project.id}>
-              {project.name}
-            </option>
-          ))}
-        </select>
+        <div className="relative min-w-[220px] lg:w-[260px]">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={projectFilterOpen ? projectFilterSearch : selectedProject?.name || projectFilterSearch}
+            onFocus={() => {
+              setProjectFilterSearch(selectedProject?.name || projectFilterSearch);
+              setProjectFilterOpen(true);
+            }}
+            onBlur={() => {
+              window.setTimeout(() => {
+                setProjectFilterOpen(false);
+                setProjectFilterSearch(selectedProject?.name || '');
+              }, 120);
+            }}
+            onChange={(event) => {
+              const nextSearch = event.target.value;
+              setProjectFilterSearch(nextSearch);
+              setProjectFilterOpen(true);
+              if (!nextSearch.trim()) {
+                setSelectedProjectId('');
+                return;
+              }
+              if (selectedProject && nextSearch !== selectedProject.name) {
+                setSelectedProjectId('');
+              }
+            }}
+            placeholder="Tìm dự án"
+            className="h-11 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-9 text-sm font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          />
+          {(selectedProjectId || projectFilterSearch) && (
+            <button
+              type="button"
+              aria-label="Xóa filter dự án"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                setSelectedProjectId('');
+                setProjectFilterSearch('');
+                setProjectFilterOpen(false);
+              }}
+              className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+          {projectFilterOpen && (
+            <div className="absolute z-20 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+              <button
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  setSelectedProjectId('');
+                  setProjectFilterSearch('');
+                  setProjectFilterOpen(false);
+                }}
+                className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+              >
+                <span className="line-clamp-1">Tất cả dự án</span>
+                {!selectedProjectId && <Check className="h-4 w-4 shrink-0 text-blue-600" />}
+              </button>
+              {filteredProjectOptions.length > 0 ? (
+                filteredProjectOptions.map((project) => (
+                  <button
+                    key={project.id}
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => {
+                      setSelectedProjectId(project.id);
+                      setProjectFilterSearch(project.name);
+                      setProjectFilterOpen(false);
+                    }}
+                    className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                  >
+                    <span className="line-clamp-1">{project.name}</span>
+                    {selectedProjectId === project.id && (
+                      <Check className="h-4 w-4 shrink-0 text-blue-600" />
+                    )}
+                  </button>
+                ))
+              ) : (
+                <div className="px-3 py-3 text-sm text-slate-500">Không tìm thấy dự án</div>
+              )}
+            </div>
+          )}
+        </div>
         <button
           onClick={() => setShowCreateModal(true)}
           disabled={boards.length === 0}
