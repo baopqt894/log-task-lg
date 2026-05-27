@@ -5,6 +5,7 @@ import {
   AlertCircle,
   Check,
   CheckCircle,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -28,6 +29,8 @@ type TaskStatus =
   | 'block'
   | 'not_started'
   | 'completed';
+
+type FilterStatus = 'pending' | 'in_progress' | 'done' | 'in_review' | 'release' | 'block';
 
 interface Task {
   id: string;
@@ -87,6 +90,15 @@ const statusClasses: Record<string, string> = {
   block: 'bg-[#ffeceb] text-[#ae2e24] dark:bg-[#42221f] dark:text-[#f87168]',
 };
 
+const statusFilterOptions: Array<{ value: FilterStatus; label: string }> = [
+  { value: 'pending', label: 'pending' },
+  { value: 'in_progress', label: 'in progress' },
+  { value: 'done', label: 'done' },
+  { value: 'in_review', label: 'in review' },
+  { value: 'release', label: 'release' },
+  { value: 'block', label: 'block' },
+];
+
 const TASKS_PER_PAGE = 10;
 
 function normalizeSearchValue(value: string) {
@@ -137,22 +149,27 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBoardId, setSelectedBoardId] = useState('');
-  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
+  const [selectedStatuses, setSelectedStatuses] = useState<FilterStatus[]>([]);
   const [projectFilterSearch, setProjectFilterSearch] = useState('');
   const [projectFilterOpen, setProjectFilterOpen] = useState(false);
+  const [statusFilterOpen, setStatusFilterOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const selectedProjectParam = selectedProjectIds.join(',');
+  const selectedStatusParam = selectedStatuses.join(',');
 
   useEffect(() => {
     if (authLoading) return;
     fetchData();
-  }, [authLoading, user?.role, selectedBoardId, selectedProjectId]);
+  }, [authLoading, user?.role, selectedBoardId, selectedProjectParam, selectedStatusParam]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
       const taskParams = new URLSearchParams();
       if (selectedBoardId) taskParams.set('boardId', selectedBoardId);
-      if (selectedProjectId) taskParams.set('projectId', selectedProjectId);
+      if (selectedProjectParam) taskParams.set('projectIds', selectedProjectParam);
+      if (selectedStatusParam) taskParams.set('statuses', selectedStatusParam);
       if (user?.role !== 'admin') taskParams.set('scope', 'mine');
       const requests = [
         fetch(`/api/tasks${taskParams.toString() ? `?${taskParams}` : ''}`),
@@ -186,16 +203,16 @@ export default function TasksPage() {
     () => new Map(projects.map((project) => [project.id, project.name])),
     [projects]
   );
-  const selectedProject = useMemo(
-    () => projects.find((project) => project.id === selectedProjectId) || null,
-    [projects, selectedProjectId]
+  const selectedProjects = useMemo(
+    () => projects.filter((project) => selectedProjectIds.includes(project.id)),
+    [projects, selectedProjectIds]
   );
 
   useEffect(() => {
     if (!projectFilterOpen) {
-      setProjectFilterSearch(selectedProject?.name || '');
+      setProjectFilterSearch('');
     }
-  }, [projectFilterOpen, selectedProject?.name]);
+  }, [projectFilterOpen]);
 
   const normalizedProjectFilterSearch = normalizeSearchValue(projectFilterSearch);
   const filteredProjectOptions = useMemo(() => {
@@ -207,6 +224,22 @@ export default function TasksPage() {
       .filter((project) => normalizeSearchValue(project.name).includes(normalizedProjectFilterSearch))
       .slice(0, 8);
   }, [normalizedProjectFilterSearch, projects]);
+
+  const toggleProjectFilter = (projectId: string) => {
+    setSelectedProjectIds((current) =>
+      current.includes(projectId)
+        ? current.filter((id) => id !== projectId)
+        : [...current, projectId]
+    );
+  };
+
+  const toggleStatusFilter = (status: FilterStatus) => {
+    setSelectedStatuses((current) =>
+      current.includes(status)
+        ? current.filter((item) => item !== status)
+        : [...current, status]
+    );
+  };
 
   const userMap = useMemo(
     () => new Map(users.map((item) => [item.id, item.full_name || item.email])),
@@ -264,7 +297,7 @@ export default function TasksPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedBoardId, selectedProjectId]);
+  }, [searchTerm, selectedBoardId, selectedProjectParam, selectedStatusParam]);
 
   useEffect(() => {
     setCurrentPage((page) => Math.min(page, totalPages));
@@ -356,129 +389,193 @@ export default function TasksPage() {
         </p>
       </div>
 
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-          <input
-            type="search"
-            placeholder="Tìm theo task, dự án, thành viên..."
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-            className="h-11 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-          />
-        </div>
-        <select
-          value={selectedBoardId}
-          onChange={(event) => setSelectedBoardId(event.target.value)}
-          className="h-11 min-w-[220px] rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-        >
-          <option value="">Tất cả bảng</option>
-          {boards.map((board) => (
-            <option key={board.id} value={board.id}>
-              {board.name}
-            </option>
-          ))}
-        </select>
-        <div className="relative min-w-[220px] lg:w-[260px]">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            value={projectFilterOpen ? projectFilterSearch : selectedProject?.name || projectFilterSearch}
-            onFocus={() => {
-              setProjectFilterSearch(selectedProject?.name || projectFilterSearch);
-              setProjectFilterOpen(true);
-            }}
-            onBlur={() => {
-              window.setTimeout(() => {
-                setProjectFilterOpen(false);
-                setProjectFilterSearch(selectedProject?.name || '');
-              }, 120);
-            }}
-            onChange={(event) => {
-              const nextSearch = event.target.value;
-              setProjectFilterSearch(nextSearch);
-              setProjectFilterOpen(true);
-              if (!nextSearch.trim()) {
-                setSelectedProjectId('');
-                return;
-              }
-              if (selectedProject && nextSearch !== selectedProject.name) {
-                setSelectedProjectId('');
-              }
-            }}
-            placeholder="Tìm dự án"
-            className="h-11 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-9 text-sm font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-          />
-          {(selectedProjectId || projectFilterSearch) && (
-            <button
-              type="button"
-              aria-label="Xóa filter dự án"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                setSelectedProjectId('');
-                setProjectFilterSearch('');
-                setProjectFilterOpen(false);
+      <div className="space-y-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+            <input
+              type="search"
+              placeholder="Tìm theo task, dự án, thành viên..."
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              className="h-11 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            />
+          </div>
+          <select
+            value={selectedBoardId}
+            onChange={(event) => setSelectedBoardId(event.target.value)}
+            className="h-11 min-w-[220px] rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          >
+            <option value="">Tất cả bảng</option>
+            {boards.map((board) => (
+              <option key={board.id} value={board.id}>
+                {board.name}
+              </option>
+            ))}
+          </select>
+          <div className="relative min-w-[220px] lg:w-[260px]">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={projectFilterSearch}
+              onFocus={() => setProjectFilterOpen(true)}
+              onBlur={() => {
+                window.setTimeout(() => {
+                  setProjectFilterOpen(false);
+                  setProjectFilterSearch('');
+                }, 120);
               }}
-              className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-          {projectFilterOpen && (
-            <div className="absolute z-20 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+              onChange={(event) => {
+                setProjectFilterSearch(event.target.value);
+                setProjectFilterOpen(true);
+              }}
+              placeholder={selectedProjectIds.length > 0 ? 'Tìm thêm dự án' : 'Tìm dự án'}
+              className="h-11 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-9 text-sm font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            />
+            {projectFilterSearch && (
               <button
                 type="button"
+                aria-label="Xóa tìm kiếm dự án"
                 onMouseDown={(event) => event.preventDefault()}
-                onClick={() => {
-                  setSelectedProjectId('');
-                  setProjectFilterSearch('');
-                  setProjectFilterOpen(false);
-                }}
-                className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                onClick={() => setProjectFilterSearch('')}
+                className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600"
               >
-                <span className="line-clamp-1">Tất cả dự án</span>
-                {!selectedProjectId && <Check className="h-4 w-4 shrink-0 text-blue-600" />}
+                <X className="h-4 w-4" />
               </button>
-              {filteredProjectOptions.length > 0 ? (
-                filteredProjectOptions.map((project) => (
-                  <button
-                    key={project.id}
-                    type="button"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => {
-                      setSelectedProjectId(project.id);
-                      setProjectFilterSearch(project.name);
-                      setProjectFilterOpen(false);
-                    }}
-                    className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-                  >
-                    <span className="line-clamp-1">{project.name}</span>
-                    {selectedProjectId === project.id && (
-                      <Check className="h-4 w-4 shrink-0 text-blue-600" />
-                    )}
-                  </button>
-                ))
-              ) : (
-                <div className="px-3 py-3 text-sm text-slate-500">Không tìm thấy dự án</div>
-              )}
-            </div>
-          )}
+            )}
+            {projectFilterOpen && (
+              <div className="absolute z-20 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+                <button
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    setSelectedProjectIds([]);
+                    setProjectFilterSearch('');
+                    setProjectFilterOpen(false);
+                  }}
+                  className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                >
+                  <span className="line-clamp-1">Tất cả dự án</span>
+                  {selectedProjectIds.length === 0 && <Check className="h-4 w-4 shrink-0 text-blue-600" />}
+                </button>
+                {filteredProjectOptions.length > 0 ? (
+                  filteredProjectOptions.map((project) => {
+                    const selected = selectedProjectIds.includes(project.id);
+
+                    return (
+                      <button
+                        key={project.id}
+                        type="button"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          toggleProjectFilter(project.id);
+                          setProjectFilterSearch('');
+                        }}
+                        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                      >
+                        <span className="line-clamp-1">{project.name}</span>
+                        {selected && <Check className="h-4 w-4 shrink-0 text-blue-600" />}
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="px-3 py-3 text-sm text-slate-500">Không tìm thấy dự án</div>
+                )}
+              </div>
+            )}
+          </div>
+          <div
+            className="relative min-w-[190px]"
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                setStatusFilterOpen(false);
+              }
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setStatusFilterOpen((open) => !open)}
+              className="inline-flex h-11 w-full items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 outline-none hover:bg-slate-50 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            >
+              <span>{selectedStatuses.length > 0 ? `${selectedStatuses.length} trạng thái` : 'Tất cả trạng thái'}</span>
+              <ChevronDown className="h-4 w-4 text-slate-400" />
+            </button>
+            {statusFilterOpen && (
+              <div className="absolute z-20 mt-2 w-full rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+                <button
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    setSelectedStatuses([]);
+                    setStatusFilterOpen(false);
+                  }}
+                  className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                >
+                  <span>Tất cả trạng thái</span>
+                  {selectedStatuses.length === 0 && <Check className="h-4 w-4 shrink-0 text-blue-600" />}
+                </button>
+                {statusFilterOptions.map((status) => {
+                  const selected = selectedStatuses.includes(status.value);
+
+                  return (
+                    <button
+                      key={status.value}
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => toggleStatusFilter(status.value)}
+                      className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                    >
+                      <span
+                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                          selected ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white'
+                        }`}
+                      >
+                        {selected && <Check className="h-3 w-3" />}
+                      </span>
+                      <span>{status.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            disabled={boards.length === 0}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Plus className="h-4 w-4" />
+            Tạo Task
+          </button>
+          <button
+            onClick={exportTaskJournal}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0b4d7f] px-4 text-sm font-semibold text-white hover:bg-[#083b63]"
+          >
+            <Download className="h-4 w-4" />
+            Export Excel
+          </button>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          disabled={boards.length === 0}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <Plus className="h-4 w-4" />
-          Tạo Task
-        </button>
-        <button
-          onClick={exportTaskJournal}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0b4d7f] px-4 text-sm font-semibold text-white hover:bg-[#083b63]"
-        >
-          <Download className="h-4 w-4" />
-          Export Excel
-        </button>
+
+        {selectedProjects.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            {selectedProjects.map((project) => (
+              <span
+                key={project.id}
+                className="inline-flex h-8 max-w-full items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 pl-3 pr-1 text-xs font-semibold text-blue-700"
+              >
+                <span className="max-w-[220px] truncate">{project.name}</span>
+                <button
+                  type="button"
+                  aria-label={`Bỏ chọn dự án ${project.name}`}
+                  onClick={() => setSelectedProjectIds((current) => current.filter((id) => id !== project.id))}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-full text-blue-500 hover:bg-blue-100 hover:text-blue-700"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-6">

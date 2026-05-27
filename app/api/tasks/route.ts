@@ -3,6 +3,22 @@ import { verifyToken } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 const TASK_STATUSES = ['pending', 'in_progress', 'done', 'in_review', 'release', 'block']
+const TASK_FILTER_STATUSES = new Set(TASK_STATUSES)
+const STATUS_FILTER_VALUES: Record<string, string[]> = {
+  pending: ['pending', 'not_started'],
+  in_progress: ['in_progress'],
+  done: ['done', 'completed'],
+  in_review: ['in_review'],
+  release: ['release'],
+  block: ['block'],
+}
+
+function parseListParam(value: string | null) {
+  return (value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
 
 async function getCurrentRole(userId: string) {
   const supabase = createAdminClient()
@@ -51,8 +67,12 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams
     const projectId = searchParams.get('projectId')
+    const projectIds = parseListParam(searchParams.get('projectIds'))
     const boardId = searchParams.get('boardId')
     const scope = searchParams.get('scope')
+    const statusIds = parseListParam(searchParams.get('statuses')).filter((status) =>
+      TASK_FILTER_STATUSES.has(status)
+    )
 
     const supabase = createAdminClient()
 
@@ -76,8 +96,17 @@ export async function GET(request: NextRequest) {
       `)
       .order('created_at', { ascending: false })
 
-    if (projectId) {
+    if (projectIds.length > 0) {
+      query = query.in('project_id', projectIds)
+    } else if (projectId) {
       query = query.eq('project_id', projectId)
+    }
+
+    if (statusIds.length > 0) {
+      const statusFilterValues = Array.from(
+        new Set(statusIds.flatMap((status) => STATUS_FILTER_VALUES[status] || [status]))
+      )
+      query = query.in('status', statusFilterValues)
     }
 
     if (currentRole !== 'admin') {
@@ -113,7 +142,7 @@ export async function GET(request: NextRequest) {
           .filter(Boolean)
       )
     )
-    const projectIds = Array.from(new Set((tasks || []).map((task) => task.project_id).filter(Boolean)))
+    const taskProjectIds = Array.from(new Set((tasks || []).map((task) => task.project_id).filter(Boolean)))
 
     const [usersResult, { data: projects }] = await Promise.all([
       userIds.length
@@ -122,8 +151,8 @@ export async function GET(request: NextRequest) {
             .select('id, email, full_name, avatar_url, roles(name)')
             .in('id', userIds)
         : Promise.resolve({ data: [], error: null }),
-      projectIds.length
-        ? supabase.from('projects').select('id, name').in('id', projectIds)
+      taskProjectIds.length
+        ? supabase.from('projects').select('id, name').in('id', taskProjectIds)
         : Promise.resolve({ data: [] }),
     ])
 
