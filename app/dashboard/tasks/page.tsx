@@ -86,7 +86,7 @@ const statusClasses: Record<string, string> = {
   done: 'bg-[#dcfff1] text-[#1f845a] dark:bg-[#1c3329] dark:text-[#4bce97]',
   completed: 'bg-[#dcfff1] text-[#1f845a] dark:bg-[#1c3329] dark:text-[#4bce97]',
   in_review: 'bg-[#f3f0ff] text-[#6e5dc6] dark:bg-[#2b244d] dark:text-[#9f8fef]',
-  release: 'bg-[#dcfff1] text-[#1f845a] dark:bg-[#1c3329] dark:text-[#4bce97]',
+  release: 'bg-[#fff7d6] text-[#946f00] dark:bg-[#3b2d13] dark:text-[#f5cd47]',
   block: 'bg-[#ffeceb] text-[#ae2e24] dark:bg-[#42221f] dark:text-[#f87168]',
 };
 

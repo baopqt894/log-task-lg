@@ -95,7 +95,7 @@ export function TaskCard({
       case 'in_review':
         return 'text-[#6e5dc6] dark:text-[#9f8fef]';
       case 'release':
-        return 'text-[#1f845a] dark:text-[#4bce97]';
+        return 'text-[#946f00] dark:text-[#f5cd47]';
       case 'block':
         return 'text-[#ae2e24] dark:text-[#f87168]';
       default:

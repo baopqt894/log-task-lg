@@ -60,7 +60,7 @@ const statusColumns = [
   {
     key: 'release',
     label: 'RELEASE',
-    dot: 'bg-[#22a06b]',
+    dot: 'bg-[#f5cd47]',
     count: 'bg-slate-200 text-slate-700 dark:bg-[#2c333a] dark:text-[#b6c2cf]',
   },
   {
