@@ -333,6 +333,7 @@ export default function TasksPage() {
 
     const headers = [
       'Task ID',
+      'Task',
       'Task Date',
       'Member',
       'Role',
@@ -362,6 +363,7 @@ export default function TasksPage() {
 
       return [
         task.id,
+        task.title,
         formatDate(task.due_date || task.created_at),
         ownerName,
         getRoleName(owner) || (ownerId === user.id ? user.role : 'member'),
