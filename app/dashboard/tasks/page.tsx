@@ -99,7 +99,10 @@ const statusFilterOptions: Array<{ value: FilterStatus; label: string }> = [
   { value: 'block', label: 'block' },
 ];
 
-const TASKS_PER_PAGE = 10;
+const DEFAULT_TASKS_PER_PAGE = 10;
+const TASKS_PER_PAGE_OPTIONS = [10, 20, 50, 100];
+const MIN_TASKS_PER_PAGE = 1;
+const MAX_TASKS_PER_PAGE = 200;
 
 function normalizeSearchValue(value: string) {
   return value
@@ -138,6 +141,12 @@ function isDoneStatus(status: TaskStatus) {
   return ['done', 'completed', 'in_review', 'release'].includes(status);
 }
 
+function normalizeTasksPerPage(value: number) {
+  if (!Number.isFinite(value)) return DEFAULT_TASKS_PER_PAGE;
+
+  return Math.min(MAX_TASKS_PER_PAGE, Math.max(MIN_TASKS_PER_PAGE, Math.floor(value)));
+}
+
 export default function TasksPage() {
   const { user, loading: authLoading } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -155,6 +164,8 @@ export default function TasksPage() {
   const [projectFilterOpen, setProjectFilterOpen] = useState(false);
   const [statusFilterOpen, setStatusFilterOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [tasksPerPage, setTasksPerPage] = useState(DEFAULT_TASKS_PER_PAGE);
+  const [tasksPerPageInput, setTasksPerPageInput] = useState(String(DEFAULT_TASKS_PER_PAGE));
   const selectedProjectParam = selectedProjectIds.join(',');
   const selectedStatusParam = selectedStatuses.join(',');
 
@@ -286,12 +297,12 @@ export default function TasksPage() {
         .includes(query);
     });
   }, [projectMap, searchTerm, tasks, user?.fullName, userMap]);
-  const totalPages = Math.max(1, Math.ceil(filteredTasks.length / TASKS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(filteredTasks.length / tasksPerPage));
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const paginatedTasks = useMemo(() => {
-    const start = (safeCurrentPage - 1) * TASKS_PER_PAGE;
-    return filteredTasks.slice(start, start + TASKS_PER_PAGE);
-  }, [filteredTasks, safeCurrentPage]);
+    const start = (safeCurrentPage - 1) * tasksPerPage;
+    return filteredTasks.slice(start, start + tasksPerPage);
+  }, [filteredTasks, safeCurrentPage, tasksPerPage]);
   const pageNumbers = useMemo(() => {
     const maxVisiblePages = 5;
     const startPage = Math.max(
@@ -302,8 +313,9 @@ export default function TasksPage() {
 
     return Array.from({ length: endPage - startPage + 1 }, (_, index) => startPage + index);
   }, [safeCurrentPage, totalPages]);
-  const pageStart = filteredTasks.length === 0 ? 0 : (safeCurrentPage - 1) * TASKS_PER_PAGE + 1;
-  const pageEnd = Math.min(safeCurrentPage * TASKS_PER_PAGE, filteredTasks.length);
+  const pageStart = filteredTasks.length === 0 ? 0 : (safeCurrentPage - 1) * tasksPerPage + 1;
+  const pageEnd = Math.min(safeCurrentPage * tasksPerPage, filteredTasks.length);
+  const shouldScrollTable = tasksPerPage > DEFAULT_TASKS_PER_PAGE;
 
   useEffect(() => {
     setCurrentPage(1);
@@ -312,6 +324,23 @@ export default function TasksPage() {
   useEffect(() => {
     setCurrentPage((page) => Math.min(page, totalPages));
   }, [totalPages]);
+
+  const updateTasksPerPage = (value: string | number) => {
+    const next = normalizeTasksPerPage(Number(value));
+
+    setTasksPerPage(next);
+    setTasksPerPageInput(String(next));
+    setCurrentPage(1);
+  };
+
+  const commitTasksPerPageInput = () => {
+    if (!tasksPerPageInput.trim()) {
+      setTasksPerPageInput(String(tasksPerPage));
+      return;
+    }
+
+    updateTasksPerPage(tasksPerPageInput);
+  };
 
   const stats = useMemo(() => {
     const rawWl = tasks.reduce((sum, task) => sum + Number(task.quantity || 0), 0);
@@ -600,9 +629,13 @@ export default function TasksPage() {
       </div>
 
       <section className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-        <div className="overflow-x-auto">
+        <div className={`overflow-x-auto ${shouldScrollTable ? 'max-h-[640px] overflow-y-auto' : ''}`}>
           <table className="w-full min-w-[960px]">
-            <thead className="border-b border-slate-200 bg-slate-50">
+            <thead
+              className={`border-b border-slate-200 bg-slate-50 ${
+                shouldScrollTable ? 'sticky top-0 z-10 shadow-[0_1px_0_rgba(148,163,184,0.25)]' : ''
+              }`}
+            >
               <tr>
                 <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-600">Ngày</th>
                 <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-600">Task</th>
@@ -687,45 +720,84 @@ export default function TasksPage() {
             </tbody>
           </table>
         </div>
-        {!loading && filteredTasks.length > TASKS_PER_PAGE && (
+        {!loading && filteredTasks.length > 0 && (
           <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-slate-600">
               Hiển thị {pageStart}-{pageEnd} / {filteredTasks.length} tác vụ
             </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                disabled={safeCurrentPage === 1}
-                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Trước
-              </button>
-              {pageNumbers.map((page) => (
-                <button
-                  key={page}
-                  type="button"
-                  aria-current={safeCurrentPage === page ? 'page' : undefined}
-                  onClick={() => setCurrentPage(page)}
-                  className={`h-10 min-w-10 rounded-lg px-3 text-sm font-semibold ${
-                    safeCurrentPage === page
-                      ? 'bg-[#0b4d7f] text-white'
-                      : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-                  }`}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-medium text-slate-600">Dòng/trang</span>
+                <select
+                  value={TASKS_PER_PAGE_OPTIONS.includes(tasksPerPage) ? String(tasksPerPage) : 'custom'}
+                  onChange={(event) => {
+                    if (event.target.value !== 'custom') {
+                      updateTasksPerPage(event.target.value);
+                    }
+                  }}
+                  className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 >
-                  {page}
-                </button>
-              ))}
-              <button
-                type="button"
-                disabled={safeCurrentPage === totalPages}
-                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Sau
-                <ChevronRight className="h-4 w-4" />
-              </button>
+                  {TASKS_PER_PAGE_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                  {!TASKS_PER_PAGE_OPTIONS.includes(tasksPerPage) && (
+                    <option value="custom">{tasksPerPage}</option>
+                  )}
+                </select>
+                <input
+                  type="number"
+                  min={MIN_TASKS_PER_PAGE}
+                  max={MAX_TASKS_PER_PAGE}
+                  value={tasksPerPageInput}
+                  onChange={(event) => setTasksPerPageInput(event.target.value)}
+                  onBlur={commitTasksPerPageInput}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.currentTarget.blur();
+                    }
+                  }}
+                  className="h-10 w-24 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+              {totalPages > 1 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={safeCurrentPage === 1}
+                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Trước
+                  </button>
+                  {pageNumbers.map((page) => (
+                    <button
+                      key={page}
+                      type="button"
+                      aria-current={safeCurrentPage === page ? 'page' : undefined}
+                      onClick={() => setCurrentPage(page)}
+                      className={`h-10 min-w-10 rounded-lg px-3 text-sm font-semibold ${
+                        safeCurrentPage === page
+                          ? 'bg-[#0b4d7f] text-white'
+                          : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    disabled={safeCurrentPage === totalPages}
+                    onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Sau
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
