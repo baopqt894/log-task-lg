@@ -317,20 +317,11 @@ export default function TasksPage() {
   const pageStart = filteredTasks.length === 0 ? 0 : (safeCurrentPage - 1) * tasksPerPage + 1;
   const pageEnd = Math.min(safeCurrentPage * tasksPerPage, filteredTasks.length);
   const shouldScrollTable = tasksPerPage > DEFAULT_TASKS_PER_PAGE;
-  const filteredTasksPerPageOptions = useMemo(() => {
-    const query = tasksPerPageInput.trim();
-
-    if (!query) {
-      return TASKS_PER_PAGE_OPTIONS;
-    }
-
-    return TASKS_PER_PAGE_OPTIONS.filter((option) => String(option).includes(query));
-  }, [tasksPerPageInput]);
   const customTasksPerPage = tasksPerPageInput.trim()
     ? normalizeTasksPerPage(Number(tasksPerPageInput))
     : null;
   const showCustomTasksPerPage =
-    customTasksPerPage != null && !filteredTasksPerPageOptions.includes(customTasksPerPage);
+    customTasksPerPage != null && !TASKS_PER_PAGE_OPTIONS.includes(customTasksPerPage);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -778,7 +769,7 @@ export default function TasksPage() {
                   <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   {tasksPerPageDropdownOpen && (
                     <div className="absolute bottom-full z-20 mb-2 max-h-56 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
-                      {filteredTasksPerPageOptions.map((option) => (
+                      {TASKS_PER_PAGE_OPTIONS.map((option) => (
                         <button
                           key={option}
                           type="button"
