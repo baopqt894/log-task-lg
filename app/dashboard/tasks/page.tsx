@@ -166,6 +166,7 @@ export default function TasksPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [tasksPerPage, setTasksPerPage] = useState(DEFAULT_TASKS_PER_PAGE);
   const [tasksPerPageInput, setTasksPerPageInput] = useState(String(DEFAULT_TASKS_PER_PAGE));
+  const [tasksPerPageDropdownOpen, setTasksPerPageDropdownOpen] = useState(false);
   const selectedProjectParam = selectedProjectIds.join(',');
   const selectedStatusParam = selectedStatuses.join(',');
 
@@ -316,6 +317,20 @@ export default function TasksPage() {
   const pageStart = filteredTasks.length === 0 ? 0 : (safeCurrentPage - 1) * tasksPerPage + 1;
   const pageEnd = Math.min(safeCurrentPage * tasksPerPage, filteredTasks.length);
   const shouldScrollTable = tasksPerPage > DEFAULT_TASKS_PER_PAGE;
+  const filteredTasksPerPageOptions = useMemo(() => {
+    const query = tasksPerPageInput.trim();
+
+    if (!query) {
+      return TASKS_PER_PAGE_OPTIONS;
+    }
+
+    return TASKS_PER_PAGE_OPTIONS.filter((option) => String(option).includes(query));
+  }, [tasksPerPageInput]);
+  const customTasksPerPage = tasksPerPageInput.trim()
+    ? normalizeTasksPerPage(Number(tasksPerPageInput))
+    : null;
+  const showCustomTasksPerPage =
+    customTasksPerPage != null && !filteredTasksPerPageOptions.includes(customTasksPerPage);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -628,8 +643,8 @@ export default function TasksPage() {
         <StatCard label="Pending" value={`${stats.pending}`} icon={<AlertCircle className="h-4 w-4" />} />
       </div>
 
-      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-        <div className={`overflow-x-auto ${shouldScrollTable ? 'max-h-[640px] overflow-y-auto' : ''}`}>
+      <section className="rounded-lg border border-slate-200 bg-white">
+        <div className={`overflow-x-auto rounded-t-lg ${shouldScrollTable ? 'max-h-[640px] overflow-y-auto' : ''}`}>
           <table className="w-full min-w-[960px]">
             <thead
               className={`border-b border-slate-200 bg-slate-50 ${
@@ -728,38 +743,75 @@ export default function TasksPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-medium text-slate-600">Dòng/trang</span>
-                <select
-                  value={TASKS_PER_PAGE_OPTIONS.includes(tasksPerPage) ? String(tasksPerPage) : 'custom'}
-                  onChange={(event) => {
-                    if (event.target.value !== 'custom') {
-                      updateTasksPerPage(event.target.value);
-                    }
-                  }}
-                  className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                >
-                  {TASKS_PER_PAGE_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                  {!TASKS_PER_PAGE_OPTIONS.includes(tasksPerPage) && (
-                    <option value="custom">{tasksPerPage}</option>
+                <div className="relative w-36">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    aria-label="Số dòng mỗi trang"
+                    value={tasksPerPageInput}
+                    onFocus={(event) => {
+                      setTasksPerPageInput(String(tasksPerPage));
+                      setTasksPerPageDropdownOpen(true);
+                      event.currentTarget.select();
+                    }}
+                    onBlur={() => {
+                      window.setTimeout(() => {
+                        setTasksPerPageDropdownOpen(false);
+                        commitTasksPerPageInput();
+                      }, 120);
+                    }}
+                    onChange={(event) => {
+                      setTasksPerPageInput(event.target.value.replace(/\D/g, ''));
+                      setTasksPerPageDropdownOpen(true);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        commitTasksPerPageInput();
+                        setTasksPerPageDropdownOpen(false);
+                        event.currentTarget.blur();
+                      }
+                    }}
+                    className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 pr-9 text-sm font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  {tasksPerPageDropdownOpen && (
+                    <div className="absolute bottom-full z-20 mb-2 max-h-56 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+                      {filteredTasksPerPageOptions.map((option) => (
+                        <button
+                          key={option}
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => {
+                            updateTasksPerPage(option);
+                            setTasksPerPageDropdownOpen(false);
+                          }}
+                          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                        >
+                          <span>{option}</span>
+                          {tasksPerPage === option && <Check className="h-4 w-4 shrink-0 text-blue-600" />}
+                        </button>
+                      ))}
+                      {showCustomTasksPerPage && customTasksPerPage != null && (
+                        <button
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => {
+                            updateTasksPerPage(customTasksPerPage);
+                            setTasksPerPageDropdownOpen(false);
+                          }}
+                          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
+                        >
+                          <span>Dùng {customTasksPerPage}</span>
+                          {tasksPerPage === customTasksPerPage && (
+                            <Check className="h-4 w-4 shrink-0 text-blue-600" />
+                          )}
+                        </button>
+                      )}
+                    </div>
                   )}
-                </select>
-                <input
-                  type="number"
-                  min={MIN_TASKS_PER_PAGE}
-                  max={MAX_TASKS_PER_PAGE}
-                  value={tasksPerPageInput}
-                  onChange={(event) => setTasksPerPageInput(event.target.value)}
-                  onBlur={commitTasksPerPageInput}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.currentTarget.blur();
-                    }
-                  }}
-                  className="h-10 w-24 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                />
+                </div>
               </div>
               {totalPages > 1 && (
                 <div className="flex flex-wrap items-center gap-2">
