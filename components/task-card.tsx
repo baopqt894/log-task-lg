@@ -241,11 +241,6 @@ export function TaskCard({
       }`}
     >
       <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-        {task.project && (
-          <span className="inline-flex h-6 items-center rounded bg-slate-100 px-2 text-[11px] font-medium leading-none text-slate-600 dark:bg-[#2c333a] dark:text-[#b6c2cf]">
-            {task.project.name}
-          </span>
-        )}
         <div
           className="relative"
           onMouseDown={(event) => event.stopPropagation()}
@@ -300,6 +295,11 @@ export function TaskCard({
             </div>
           )}
         </div>
+        {task.project && (
+          <span className="inline-flex h-6 items-center rounded bg-slate-100 px-2 text-[11px] font-medium leading-none text-slate-600 dark:bg-[#2c333a] dark:text-[#b6c2cf]">
+            {task.project.name}
+          </span>
+        )}
       </div>
 
       {/* Title */}
