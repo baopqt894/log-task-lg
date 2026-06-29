@@ -718,7 +718,7 @@ export default function TasksPage() {
                 <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-600">Task</th>
                 <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-600">Dự án</th>
                 <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-600">Thành viên</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-600">WL</th>
+                <th className="min-w-[96px] whitespace-nowrap px-5 py-3 text-left text-xs font-semibold uppercase text-slate-600">WL</th>
                 <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-600">Trạng thái</th>
                 <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-600">Duyệt KPI</th>
                 <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-600">Cập nhật</th>
@@ -764,7 +764,7 @@ export default function TasksPage() {
                         {task.project?.name || (task.project_id ? projectMap.get(task.project_id) || '-' : '-')}
                       </td>
                       <td className="px-5 py-4 text-sm text-slate-700">{ownerName}</td>
-                      <td className="px-5 py-4 text-sm font-semibold text-slate-950">
+                      <td className="min-w-[96px] whitespace-nowrap px-5 py-4 text-sm font-semibold text-slate-950">
                         {formatWl(Number(task.quantity || 0))} WL
                       </td>
                       <td className="px-5 py-4">
