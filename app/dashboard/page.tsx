@@ -31,6 +31,7 @@ type TaskStatus =
   | 'completed';
 
 type BoardStatus = 'pending' | 'in_progress' | 'done' | 'in_review' | 'release' | 'block';
+type TaskApprovalStatus = 'pending' | 'approved' | 'rejected';
 
 const statusColumns = [
   {
@@ -93,11 +94,21 @@ function formatWl(value: number) {
   });
 }
 
+function getApprovalStatus(status?: string | null): TaskApprovalStatus {
+  if (status === 'approved' || status === 'rejected') return status;
+  return 'pending';
+}
+
+function isTaskApproved(task: { approval_status?: string | null }) {
+  return getApprovalStatus(task.approval_status) === 'approved';
+}
+
 interface Task {
   id: string;
   title: string;
   description: string | null;
   status: TaskStatus;
+  approval_status?: TaskApprovalStatus | null;
   assigned_to: string;
   created_by?: string | null;
   project_id: string;
@@ -205,6 +216,7 @@ export default function DashboardPage() {
   const [savingBoardSettings, setSavingBoardSettings] = useState(false);
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<BoardStatus | null>(null);
+  const [approvalUpdatingTaskId, setApprovalUpdatingTaskId] = useState<string | null>(null);
   const [deletingTask, setDeletingTask] = useState(false);
   const boardDropdownRef = useRef<HTMLDivElement | null>(null);
   const tasksRef = useRef<Task[]>([]);
@@ -481,6 +493,52 @@ export default function DashboardPage() {
     }
   };
 
+  const handleTaskApprovalChange = async (task: Task, approvalStatus: TaskApprovalStatus) => {
+    if (user?.role !== 'admin' || getApprovalStatus(task.approval_status) === approvalStatus) {
+      return;
+    }
+
+    setApprovalUpdatingTaskId(task.id);
+    try {
+      const response = await fetch(`/api/tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ approvalStatus }),
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        toast({
+          variant: 'destructive',
+          title: 'Không thể cập nhật duyệt KPI',
+          description: data?.message || 'Vui lòng thử lại sau.',
+        });
+        return;
+      }
+
+      const updatedAt = data?.task?.updated_at;
+      const mergeApproval = (item: Task): Task => ({
+        ...item,
+        approval_status: approvalStatus,
+        updated_at: updatedAt || item.updated_at,
+      });
+
+      setTasks((current) => current.map((item) => (item.id === task.id ? mergeApproval(item) : item)));
+      setViewingTask((current) => (current?.id === task.id ? mergeApproval(current) : current));
+      setEditingTask((current) => (current?.id === task.id ? mergeApproval(current) : current));
+      refreshTasksQuietly();
+    } catch (error) {
+      console.error('Error updating task approval:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Không thể cập nhật duyệt KPI',
+        description: 'Vui lòng thử lại sau.',
+      });
+    } finally {
+      setApprovalUpdatingTaskId(null);
+    }
+  };
+
   const handleDuplicateTask = async (task: Task) => {
     setTaskMenu(null);
     try {
@@ -628,10 +686,10 @@ export default function DashboardPage() {
 
   const boardRawWl = tasks.reduce((sum, task) => sum + Number(task.quantity || 0), 0);
   const boardDoneWl = tasks
-    .filter((task) => isDoneStatus(task.status))
+    .filter((task) => isTaskApproved(task) && isDoneStatus(task.status))
     .reduce((sum, task) => sum + Number(task.quantity || 0), 0);
   const boardReleaseWl = tasks
-    .filter((task) => task.status === 'release')
+    .filter((task) => isTaskApproved(task) && task.status === 'release')
     .reduce((sum, task) => sum + Number(task.quantity || 0), 0);
   const boardMemberCount = selectedBoard?.board_members?.length || 0;
 
@@ -964,6 +1022,9 @@ export default function DashboardPage() {
                       canEdit={canEditTask(task)}
                       isOwnTask={isOwnTask(task)}
                       onOpen={() => setViewingTask(task)}
+                      canApprove={user?.role === 'admin'}
+                      approvalUpdating={approvalUpdatingTaskId === task.id}
+                      onApprovalChange={(approvalStatus) => handleTaskApprovalChange(task, approvalStatus)}
                       onContextMenu={(event) => {
                         event.preventDefault();
                         setTaskMenu({

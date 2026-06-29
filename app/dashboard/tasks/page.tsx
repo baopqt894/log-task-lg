@@ -31,6 +31,7 @@ type TaskStatus =
   | 'completed';
 
 type FilterStatus = 'pending' | 'in_progress' | 'done' | 'in_review' | 'release' | 'block';
+type TaskApprovalStatus = 'pending' | 'approved' | 'rejected';
 
 interface Task {
   id: string;
@@ -41,6 +42,7 @@ interface Task {
   assigned_to?: string | null;
   created_by?: string | null;
   status: TaskStatus;
+  approval_status?: TaskApprovalStatus | null;
   task_type?: string | null;
   quantity?: number | null;
   due_date?: string | null;
@@ -99,6 +101,18 @@ const statusFilterOptions: Array<{ value: FilterStatus; label: string }> = [
   { value: 'block', label: 'block' },
 ];
 
+const approvalLabels: Record<TaskApprovalStatus, string> = {
+  approved: 'Approved',
+  pending: 'Waiting',
+  rejected: 'Rejected',
+};
+
+const approvalDotClasses: Record<TaskApprovalStatus, string> = {
+  approved: 'bg-emerald-500',
+  pending: 'bg-amber-400',
+  rejected: 'bg-red-500',
+};
+
 const DEFAULT_TASKS_PER_PAGE = 10;
 const TASKS_PER_PAGE_OPTIONS = [10, 20, 50, 100];
 const MIN_TASKS_PER_PAGE = 1;
@@ -141,6 +155,15 @@ function isDoneStatus(status: TaskStatus) {
   return ['done', 'completed', 'in_review', 'release'].includes(status);
 }
 
+function getApprovalStatus(status?: string | null): TaskApprovalStatus {
+  if (status === 'approved' || status === 'rejected') return status;
+  return 'pending';
+}
+
+function isTaskApproved(task: { approval_status?: string | null }) {
+  return getApprovalStatus(task.approval_status) === 'approved';
+}
+
 function normalizeTasksPerPage(value: number) {
   if (!Number.isFinite(value)) return DEFAULT_TASKS_PER_PAGE;
 
@@ -167,6 +190,7 @@ export default function TasksPage() {
   const [tasksPerPage, setTasksPerPage] = useState(DEFAULT_TASKS_PER_PAGE);
   const [tasksPerPageInput, setTasksPerPageInput] = useState(String(DEFAULT_TASKS_PER_PAGE));
   const [tasksPerPageDropdownOpen, setTasksPerPageDropdownOpen] = useState(false);
+  const [approvalUpdatingTaskId, setApprovalUpdatingTaskId] = useState<string | null>(null);
   const selectedProjectParam = selectedProjectIds.join(',');
   const selectedStatusParam = selectedStatuses.join(',');
 
@@ -348,10 +372,45 @@ export default function TasksPage() {
     updateTasksPerPage(tasksPerPageInput);
   };
 
+  const updateTaskApproval = async (task: Task, approvalStatus: TaskApprovalStatus) => {
+    setApprovalUpdatingTaskId(task.id);
+
+    try {
+      const response = await fetch(`/api/tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ approvalStatus }),
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        alert(data?.message || 'Không thể cập nhật trạng thái duyệt');
+        return;
+      }
+
+      setTasks((current) =>
+        current.map((item) =>
+          item.id === task.id
+            ? {
+                ...item,
+                approval_status: approvalStatus,
+                updated_at: data?.task?.updated_at || item.updated_at,
+              }
+            : item
+        )
+      );
+    } catch (error) {
+      console.error('Error updating task approval:', error);
+      alert('Không thể cập nhật trạng thái duyệt');
+    } finally {
+      setApprovalUpdatingTaskId(null);
+    }
+  };
+
   const stats = useMemo(() => {
     const rawWl = tasks.reduce((sum, task) => sum + Number(task.quantity || 0), 0);
-    const doneTasks = tasks.filter((task) => isDoneStatus(task.status));
-    const releaseTasks = tasks.filter((task) => task.status === 'release');
+    const doneTasks = tasks.filter((task) => isTaskApproved(task) && isDoneStatus(task.status));
+    const releaseTasks = tasks.filter((task) => isTaskApproved(task) && task.status === 'release');
 
     return {
       total: tasks.length,
@@ -378,6 +437,7 @@ export default function TasksPage() {
       'Unit WL',
       'Raw WL',
       'Task Status',
+      'Approval Status',
       'Done WL',
       'Release WL',
       'KPI Result',
@@ -392,9 +452,19 @@ export default function TasksPage() {
       const owner = userDetailMap.get(ownerId) || getTaskOwner(task) || undefined;
       const ownerName = owner?.full_name || owner?.email || (ownerId === user.id ? user.fullName : '-');
       const status = statusLabels[task.status] || task.status;
+      const approvalStatus = getApprovalStatus(task.approval_status);
+      const approved = approvalStatus === 'approved';
       const quantity = Number(task.quantity || 0);
-      const doneWl = isDoneStatus(task.status) ? quantity : 0;
-      const releaseWl = task.status === 'release' ? quantity : 0;
+      const doneWl = approved && isDoneStatus(task.status) ? quantity : 0;
+      const releaseWl = approved && task.status === 'release' ? quantity : 0;
+      const kpiResult =
+        approvalStatus === 'rejected'
+          ? 'Rejected'
+          : approvalStatus === 'pending'
+            ? 'Waiting'
+            : releaseWl > 0
+              ? 'Counted'
+              : 'Not counted';
 
       return [
         task.id,
@@ -408,9 +478,10 @@ export default function TasksPage() {
         'WL',
         quantity,
         status,
+        approvalLabels[approvalStatus],
         doneWl,
         releaseWl,
-        releaseWl > 0 ? 'Counted' : 'Not counted',
+        kpiResult,
         '',
         task.description || '',
         task.created_at ? new Date(task.created_at).toLocaleString('vi-VN') : '',
@@ -636,7 +707,7 @@ export default function TasksPage() {
 
       <section className="rounded-lg border border-slate-200 bg-white">
         <div className={`overflow-x-auto rounded-t-lg ${shouldScrollTable ? 'max-h-[640px] overflow-y-auto' : ''}`}>
-          <table className="w-full min-w-[960px]">
+          <table className="w-full min-w-[1120px]">
             <thead
               className={`border-b border-slate-200 bg-slate-50 ${
                 shouldScrollTable ? 'sticky top-0 z-10 shadow-[0_1px_0_rgba(148,163,184,0.25)]' : ''
@@ -649,6 +720,7 @@ export default function TasksPage() {
                 <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-600">Thành viên</th>
                 <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-600">WL</th>
                 <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-600">Trạng thái</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-600">Duyệt KPI</th>
                 <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-600">Cập nhật</th>
                 <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-600">Sửa</th>
               </tr>
@@ -656,13 +728,13 @@ export default function TasksPage() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-slate-500">
+                  <td colSpan={9} className="px-5 py-10 text-center text-sm text-slate-500">
                     Đang tải...
                   </td>
                 </tr>
               ) : filteredTasks.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-slate-500">
+                  <td colSpan={9} className="px-5 py-10 text-center text-sm text-slate-500">
                     Không có task phù hợp
                   </td>
                 </tr>
@@ -670,6 +742,7 @@ export default function TasksPage() {
                 paginatedTasks.map((task) => {
                   const ownerId = getTaskOwnerId(task);
                   const owner = getTaskOwner(task);
+                  const approvalStatus = getApprovalStatus(task.approval_status);
                   const ownerName =
                     owner?.full_name ||
                     owner?.email ||
@@ -702,6 +775,41 @@ export default function TasksPage() {
                         >
                           {statusLabels[task.status] || task.status}
                         </span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="min-w-[160px] space-y-2">
+                          {user.role === 'admin' ? (
+                            <>
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${approvalDotClasses[approvalStatus]}`}
+                                />
+                                <select
+                                  aria-label={`Duyệt KPI ${task.title}`}
+                                  value={approvalStatus}
+                                  disabled={approvalUpdatingTaskId === task.id}
+                                  onChange={(event) =>
+                                    updateTaskApproval(task, event.target.value as TaskApprovalStatus)
+                                  }
+                                  className="h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:opacity-60"
+                                >
+                                  <option value="pending">Waiting</option>
+                                  <option value="approved">Approved</option>
+                                  <option value="rejected">Rejected</option>
+                                </select>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="space-y-1">
+                              <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
+                                <span
+                                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${approvalDotClasses[approvalStatus]}`}
+                                />
+                                {approvalLabels[approvalStatus]}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-500">
                         {formatDate(task.updated_at || task.created_at)}

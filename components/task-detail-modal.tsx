@@ -12,12 +12,14 @@ type TaskStatus =
   | 'block'
   | 'not_started'
   | 'completed';
+type TaskApprovalStatus = 'pending' | 'approved' | 'rejected';
 
 interface TaskDetail {
   id: string;
   title: string;
   description?: string | null;
   status: TaskStatus;
+  approval_status?: TaskApprovalStatus | null;
   project_id: string;
   board_id?: string | null;
   quantity?: number | null;
@@ -58,6 +60,18 @@ const statusClasses: Record<string, string> = {
   block: 'bg-[#ffeceb] text-[#ae2e24] dark:bg-[#42221f] dark:text-[#f87168]',
 };
 
+const approvalLabels: Record<TaskApprovalStatus, string> = {
+  approved: 'Approved',
+  pending: 'Waiting',
+  rejected: 'Rejected',
+};
+
+const approvalDotClasses: Record<TaskApprovalStatus, string> = {
+  approved: 'bg-emerald-500',
+  pending: 'bg-amber-400',
+  rejected: 'bg-red-500',
+};
+
 function formatDate(value?: string | null) {
   if (!value) return '-';
   return new Date(value).toLocaleDateString('vi-VN');
@@ -74,10 +88,16 @@ function formatWl(value: number) {
   });
 }
 
+function getApprovalStatus(status?: string | null): TaskApprovalStatus {
+  if (status === 'approved' || status === 'rejected') return status;
+  return 'pending';
+}
+
 export function TaskDetailModal({ task, canEdit, onClose, onEdit }: TaskDetailModalProps) {
   const creatorName = task.creator?.full_name || task.creator?.email || '-';
   const assigneeName = task.assignee?.full_name || task.assignee?.email || '-';
   const statusLabel = statusLabels[task.status] || task.status;
+  const approvalStatus = getApprovalStatus(task.approval_status);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[1px]">
@@ -91,6 +111,10 @@ export function TaskDetailModal({ task, canEdit, onClose, onEdit }: TaskDetailMo
                 }`}
               >
                 {statusLabel}
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                <span className={`h-2.5 w-2.5 rounded-full ${approvalDotClasses[approvalStatus]}`} />
+                {approvalLabels[approvalStatus]}
               </span>
               {task.project?.name && (
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 dark:bg-[#2c333a] dark:text-[#b6c2cf]">
@@ -116,6 +140,7 @@ export function TaskDetailModal({ task, canEdit, onClose, onEdit }: TaskDetailMo
             <DetailItem icon={<FolderOpen className="h-4 w-4" />} label="Dự án" value={task.project?.name || '-'} />
             <DetailItem icon={<Hash className="h-4 w-4" />} label="Số lượng" value={`${formatWl(Number(task.quantity || 0))} WL`} />
             <DetailItem icon={<Calendar className="h-4 w-4" />} label="Ngày task" value={formatDate(task.due_date)} />
+            <DetailItem icon={<ClipboardList className="h-4 w-4" />} label="Duyệt KPI" value={approvalLabels[approvalStatus]} />
             <DetailItem icon={<ClipboardList className="h-4 w-4" />} label="Cập nhật" value={formatDateTime(task.updated_at || task.created_at)} />
           </div>
 

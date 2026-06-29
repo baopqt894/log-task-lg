@@ -8,6 +8,7 @@ import { downloadXlsxFile } from '@/lib/export-xlsx';
 interface Task {
   id: string;
   status: string;
+  approval_status?: string | null;
   quantity?: number | null;
   estimated_hours?: number | null;
   project_id?: string;
@@ -98,6 +99,10 @@ function isDoneStatus(status: string) {
   return ['done', 'completed', 'in_review', 'release'].includes(status);
 }
 
+function isTaskApproved(task: Task) {
+  return task.approval_status === 'approved';
+}
+
 function formatWl(value: number) {
   return Number(value || 0).toLocaleString('vi-VN', {
     maximumFractionDigits: 2,
@@ -121,22 +126,24 @@ function AdminKpiReport({ tasks, users }: { tasks: Task[]; users: ReportUser[] }
   const memberUsers = users.filter((item) => getRoleName(item) !== 'admin' && item.is_active !== false);
   const memberIds = new Set(memberUsers.map((item) => item.id));
   const trackedTasks = monthlyTasks.filter((task) => memberIds.has(getTaskOwnerId(task)));
+  const approvedTrackedTasks = trackedTasks.filter(isTaskApproved);
   const totalTarget = memberUsers.reduce((sum, item) => sum + Number(item.monthly_wl_kpi || 0), 0);
   const rawWl = sumWl(trackedTasks);
   const doneWl = sumWl(
-    trackedTasks.filter((task) => isDoneStatus(task.status))
+    approvedTrackedTasks.filter((task) => isDoneStatus(task.status))
   );
-  const releaseWl = sumWl(trackedTasks.filter((task) => task.status === 'release'));
+  const releaseWl = sumWl(approvedTrackedTasks.filter((task) => task.status === 'release'));
   const progress = getKpiPercent(releaseWl, totalTarget);
   const monthLabel = new Date().toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' });
 
   const userRows = memberUsers
     .map((item) => {
       const userTasks = monthlyTasks.filter((task) => getTaskOwnerId(task) === item.id);
+      const approvedUserTasks = userTasks.filter(isTaskApproved);
       const userDoneWl = sumWl(
-        userTasks.filter((task) => isDoneStatus(task.status))
+        approvedUserTasks.filter((task) => isDoneStatus(task.status))
       );
-      const userReleaseWl = sumWl(userTasks.filter((task) => task.status === 'release'));
+      const userReleaseWl = sumWl(approvedUserTasks.filter((task) => task.status === 'release'));
       const target = Number(item.monthly_wl_kpi || 0);
 
       return {
@@ -174,7 +181,7 @@ function AdminKpiReport({ tasks, users }: { tasks: Task[]; users: ReportUser[] }
       <div>
         <h1 className="text-5xl font-bold tracking-normal text-slate-950">Báo Cáo KPI Tổng</h1>
         <p className="mt-2 text-lg text-slate-600">
-          Tổng WL của user trong {monthLabel}; release được tính vào KPI và cũng được tính là done.
+          Tổng WL của user trong {monthLabel}; chỉ task đã approved mới được tính KPI.
         </p>
         <button
           onClick={exportKpiReport}
@@ -206,7 +213,7 @@ function AdminKpiReport({ tasks, users }: { tasks: Task[]; users: ReportUser[] }
           title="Done WL"
           value={formatWl(doneWl)}
           unit="WL"
-          trend="Bao gồm in review và release"
+          trend="Chỉ tính task đã approved"
           icon={<CheckCircle2 className="w-6 h-6 text-emerald-600" />}
           iconClass="bg-emerald-100"
         />
@@ -236,7 +243,7 @@ function AdminKpiReport({ tasks, users }: { tasks: Task[]; users: ReportUser[] }
           />
         </div>
         <div className="mt-4 flex justify-between text-sm text-slate-600">
-          <span>{formatWl(releaseWl)} WL release được tính KPI</span>
+          <span>{formatWl(releaseWl)} WL release đã approved</span>
           <span>{formatWl(totalTarget)} WL mục tiêu</span>
         </div>
       </section>
@@ -253,7 +260,7 @@ function AdminKpiReport({ tasks, users }: { tasks: Task[]; users: ReportUser[] }
               <div>
                 <p className="text-2xl font-bold text-slate-950">{topUser.name}</p>
                 <p className="mt-1 text-sm text-slate-600">
-                  {formatWl(topUser.doneWl)} done WL, trong đó {formatWl(topUser.releaseWl)} release WL
+                  {formatWl(topUser.doneWl)} done WL đã approved, trong đó {formatWl(topUser.releaseWl)} release WL
                 </p>
               </div>
               <span className="text-3xl font-bold text-[#0b4d7f]">{topUser.progress}%</span>
@@ -294,10 +301,11 @@ function MemberKpiReport({ tasks, target }: { tasks: Task[]; target: number }) {
   const monthlyTasks = getMonthlyTasks(tasks);
 
   const rawWl = sumWl(monthlyTasks);
+  const approvedMonthlyTasks = monthlyTasks.filter(isTaskApproved);
   const doneWl = sumWl(
-    monthlyTasks.filter((task) => isDoneStatus(task.status))
+    approvedMonthlyTasks.filter((task) => isDoneStatus(task.status))
   );
-  const releaseWl = sumWl(monthlyTasks.filter((task) => task.status === 'release'));
+  const releaseWl = sumWl(approvedMonthlyTasks.filter((task) => task.status === 'release'));
 
   const remaining = Math.max(target - releaseWl, 0);
   const progress = getKpiPercent(releaseWl, target);
@@ -308,7 +316,7 @@ function MemberKpiReport({ tasks, target }: { tasks: Task[]; target: number }) {
       <div>
         <h1 className="text-5xl font-bold tracking-normal text-slate-950">Báo Cáo KPI</h1>
         <p className="mt-2 text-lg text-slate-600">
-          Release được tính vào KPI và đồng thời tính là done trong {monthLabel}.
+          Chỉ task đã được admin approved mới được tính KPI trong {monthLabel}.
         </p>
       </div>
 
@@ -333,7 +341,7 @@ function MemberKpiReport({ tasks, target }: { tasks: Task[]; target: number }) {
           title="Done WL"
           value={formatWl(doneWl)}
           unit="WL"
-          trend="Bao gồm in review và release"
+          trend="Chỉ tính task đã approved"
           icon={<CheckCircle2 className="w-6 h-6 text-emerald-600" />}
           iconClass="bg-emerald-100"
         />
@@ -363,7 +371,7 @@ function MemberKpiReport({ tasks, target }: { tasks: Task[]; target: number }) {
           />
         </div>
         <div className="mt-4 flex justify-between text-sm text-slate-600">
-          <span>{formatWl(releaseWl)} WL release được tính KPI</span>
+          <span>{formatWl(releaseWl)} WL release đã approved</span>
           <span>{formatWl(target)} WL mục tiêu</span>
         </div>
       </section>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type DragEvent, type MouseEvent } from 'react';
-import { Calendar, AlertCircle, CheckCircle2, Clock, Rocket, ShieldCheck, Ban, Pencil } from 'lucide-react';
+import { Calendar, AlertCircle, Check, CheckCircle2, ChevronDown, Clock, Rocket, ShieldCheck, Ban, Pencil } from 'lucide-react';
 
 type TaskStatus =
   | 'pending'
@@ -12,12 +12,32 @@ type TaskStatus =
   | 'block'
   | 'not_started'
   | 'completed';
+type TaskApprovalStatus = 'pending' | 'approved' | 'rejected';
+
+const approvalLabels: Record<TaskApprovalStatus, string> = {
+  approved: 'Approved',
+  pending: 'Waiting',
+  rejected: 'Rejected',
+};
+
+const approvalDotClasses: Record<TaskApprovalStatus, string> = {
+  approved: 'bg-emerald-500',
+  pending: 'bg-amber-400',
+  rejected: 'bg-red-500',
+};
+
+const approvalOptions: Array<{ value: TaskApprovalStatus; label: string }> = [
+  { value: 'pending', label: 'Waiting' },
+  { value: 'approved', label: 'Approved' },
+  { value: 'rejected', label: 'Rejected' },
+];
 
 interface Task {
   id: string;
   title: string;
   description?: string | null;
   status: TaskStatus;
+  approval_status?: TaskApprovalStatus | null;
   assigned_to?: string;
   created_by?: string | null;
   project_id: string;
@@ -43,6 +63,9 @@ interface TaskCardProps {
   isRemoving?: boolean;
   onOpen?: () => void;
   onEdit?: () => void;
+  canApprove?: boolean;
+  approvalUpdating?: boolean;
+  onApprovalChange?: (approvalStatus: TaskApprovalStatus) => void | Promise<void>;
   onContextMenu?: (event: MouseEvent<HTMLDivElement>) => void;
 }
 
@@ -63,6 +86,11 @@ function getInitials(name?: string | null, email?: string | null) {
   return source.slice(0, 2).toUpperCase();
 }
 
+function getApprovalStatus(status?: string | null): TaskApprovalStatus {
+  if (status === 'approved' || status === 'rejected') return status;
+  return 'pending';
+}
+
 export function TaskCard({
   task,
   onUpdate,
@@ -76,13 +104,19 @@ export function TaskCard({
   isRemoving = false,
   onOpen,
   onEdit,
+  canApprove = false,
+  approvalUpdating = false,
+  onApprovalChange,
   onContextMenu,
 }: TaskCardProps) {
   const [isUpdating, setIsUpdating] = useState(false);
+  const [approvalDropdownOpen, setApprovalDropdownOpen] = useState(false);
 
   const normalizedStatus =
     task.status === 'not_started' ? 'pending' : task.status === 'completed' ? 'done' : task.status;
+  const approvalStatus = getApprovalStatus(task.approval_status);
   const assigneeName = task.assignee?.full_name || task.assignee?.email || 'Avatar';
+  const canUseApprovalDropdown = canApprove && Boolean(onApprovalChange);
 
   const getStatusColor = () => {
     switch (normalizedStatus) {
@@ -175,6 +209,16 @@ export function TaskCard({
     }
   };
 
+  const handleApprovalSelect = (nextApprovalStatus: TaskApprovalStatus) => {
+    setApprovalDropdownOpen(false);
+
+    if (nextApprovalStatus === approvalStatus || !onApprovalChange) {
+      return;
+    }
+
+    onApprovalChange(nextApprovalStatus);
+  };
+
   return (
     <div
       draggable={draggable}
@@ -196,14 +240,67 @@ export function TaskCard({
         isRemoving ? 'task-card-exit pointer-events-none' : ''
       }`}
     >
-      {/* Project Tag */}
-      {task.project && (
-        <div className="mb-1.5">
-          <span className="inline-block rounded bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-[#2c333a] dark:text-[#b6c2cf]">
+      <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+        {task.project && (
+          <span className="inline-flex h-6 items-center rounded bg-slate-100 px-2 text-[11px] font-medium leading-none text-slate-600 dark:bg-[#2c333a] dark:text-[#b6c2cf]">
             {task.project.name}
           </span>
+        )}
+        <div
+          className="relative"
+          onMouseDown={(event) => event.stopPropagation()}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+              setApprovalDropdownOpen(false);
+            }
+          }}
+        >
+          {canUseApprovalDropdown ? (
+            <button
+              type="button"
+              draggable={false}
+              disabled={approvalUpdating}
+              onClick={(event) => {
+                event.stopPropagation();
+                setApprovalDropdownOpen((open) => !open);
+              }}
+              className="inline-flex h-6 items-center gap-1.5 rounded bg-slate-100 px-2 text-[11px] font-semibold leading-none text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-[#2c333a] dark:text-[#b6c2cf] dark:hover:bg-[#3a424c]"
+            >
+              <span className={`h-2 w-2 shrink-0 rounded-full ${approvalDotClasses[approvalStatus]}`} />
+              <span>{approvalLabels[approvalStatus]}</span>
+              <ChevronDown className={`h-3 w-3 shrink-0 transition-transform ${approvalDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+          ) : (
+            <span className="inline-flex h-6 items-center gap-1.5 rounded bg-slate-100 px-2 text-[11px] font-semibold leading-none text-slate-600 dark:bg-[#2c333a] dark:text-[#b6c2cf]">
+              <span className={`h-2 w-2 shrink-0 rounded-full ${approvalDotClasses[approvalStatus]}`} />
+              {approvalLabels[approvalStatus]}
+            </span>
+          )}
+          {canUseApprovalDropdown && approvalDropdownOpen && (
+            <div
+              className="absolute left-0 top-full z-40 mt-1 w-36 overflow-hidden rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-[#2c333a] dark:bg-[#22272b]"
+              onClick={(event) => event.stopPropagation()}
+            >
+              {approvalOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  draggable={false}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleApprovalSelect(option.value);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:text-[#dee4ea] dark:hover:bg-[#2c333a]"
+                >
+                  <span className={`h-2 w-2 rounded-full ${approvalDotClasses[option.value]}`} />
+                  <span>{option.label}</span>
+                  {option.value === approvalStatus && <Check className="ml-auto h-3.5 w-3.5 text-blue-600" />}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Title */}
       <h3 className="mb-1.5 line-clamp-2 text-sm font-semibold leading-5 text-slate-900 dark:text-[#dee4ea]">{task.title}</h3>

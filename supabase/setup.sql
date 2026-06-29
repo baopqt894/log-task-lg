@@ -77,6 +77,7 @@ create table if not exists public.tasks (
   status text not null default 'not_started',
   task_type text,
   quantity numeric,
+  approval_status text not null default 'pending',
   estimated_hours integer,
   due_date date,
   created_by uuid references public.users(id) on delete set null,
@@ -88,7 +89,23 @@ alter table public.tasks
   add column if not exists board_id uuid references public.boards(id) on delete set null;
 
 alter table public.tasks
+  add column if not exists approval_status text not null default 'pending';
+
+alter table public.tasks
   alter column quantity type numeric using quantity::numeric;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'tasks_approval_status_check'
+  ) then
+    alter table public.tasks
+      add constraint tasks_approval_status_check
+      check (approval_status in ('pending', 'approved', 'rejected'));
+  end if;
+end $$;
 
 alter table public.tasks replica identity full;
 

@@ -12,6 +12,39 @@ const STATUS_FILTER_VALUES: Record<string, string[]> = {
   release: ['release'],
   block: ['block'],
 }
+const TASK_SELECT_COLUMNS = `
+  id,
+  board_id,
+  title,
+  description,
+  project_id,
+  assigned_to,
+  status,
+  approval_status,
+  task_type,
+  quantity,
+  estimated_hours,
+  due_date,
+  created_by,
+  created_at,
+  updated_at
+`
+const LEGACY_TASK_SELECT_COLUMNS = `
+  id,
+  board_id,
+  title,
+  description,
+  project_id,
+  assigned_to,
+  status,
+  task_type,
+  quantity,
+  estimated_hours,
+  due_date,
+  created_by,
+  created_at,
+  updated_at
+`
 
 function parseListParam(value: string | null) {
   return (value || '')
@@ -75,42 +108,10 @@ export async function GET(request: NextRequest) {
     )
 
     const supabase = createAdminClient()
-
-    let query = supabase
-      .from('tasks')
-      .select(`
-        id,
-        board_id,
-        title,
-        description,
-        project_id,
-        assigned_to,
-        status,
-        task_type,
-        quantity,
-        estimated_hours,
-        due_date,
-        created_by,
-        created_at,
-        updated_at
-      `)
-      .order('created_at', { ascending: false })
-
-    if (projectIds.length > 0) {
-      query = query.in('project_id', projectIds)
-    } else if (projectId) {
-      query = query.eq('project_id', projectId)
-    }
-
-    if (statusIds.length > 0) {
-      const statusFilterValues = Array.from(
-        new Set(statusIds.flatMap((status) => STATUS_FILTER_VALUES[status] || [status]))
-      )
-      query = query.in('status', statusFilterValues)
-    }
+    let allowedBoardIds: string[] = []
 
     if (currentRole !== 'admin') {
-      const allowedBoardIds = await getAllowedBoardIds(payload.userId)
+      allowedBoardIds = await getAllowedBoardIds(payload.userId)
 
       if (allowedBoardIds.length === 0) {
         return NextResponse.json({ tasks: [] })
@@ -119,19 +120,52 @@ export async function GET(request: NextRequest) {
       if (boardId && !allowedBoardIds.includes(boardId)) {
         return NextResponse.json({ tasks: [] })
       }
+    }
 
-      query = query.in('board_id', allowedBoardIds)
+    const selectTasks = async (selectColumns: string) => {
+      let query = supabase
+        .from('tasks')
+        .select(selectColumns)
+        .order('created_at', { ascending: false })
 
-      if (scope === 'mine') {
-        query = query.or(`assigned_to.eq.${payload.userId},created_by.eq.${payload.userId}`)
+      if (projectIds.length > 0) {
+        query = query.in('project_id', projectIds)
+      } else if (projectId) {
+        query = query.eq('project_id', projectId)
       }
+
+      if (statusIds.length > 0) {
+        const statusFilterValues = Array.from(
+          new Set(statusIds.flatMap((status) => STATUS_FILTER_VALUES[status] || [status]))
+        )
+        query = query.in('status', statusFilterValues)
+      }
+
+      if (currentRole !== 'admin') {
+        query = query.in('board_id', allowedBoardIds)
+
+        if (scope === 'mine') {
+          query = query.or(`assigned_to.eq.${payload.userId},created_by.eq.${payload.userId}`)
+        }
+      }
+
+      if (boardId) {
+        query = query.eq('board_id', boardId)
+      }
+
+      return query
     }
 
-    if (boardId) {
-      query = query.eq('board_id', boardId)
-    }
+    let { data: tasks, error } = await selectTasks(TASK_SELECT_COLUMNS)
 
-    const { data: tasks, error } = await query
+    if (error?.code === '42703' && String(error.message || '').includes('approval_status')) {
+      const fallback = await selectTasks(LEGACY_TASK_SELECT_COLUMNS)
+      tasks = (fallback.data || []).map((task) => ({
+        ...task,
+        approval_status: 'pending',
+      }))
+      error = fallback.error
+    }
 
     if (error) throw error
 
@@ -244,25 +278,43 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const { data: task, error } = await supabase
+    const insertPayload = {
+      project_id: projectId,
+      board_id: boardId || null,
+      title,
+      description,
+      assigned_to: currentRole === 'admin' ? assignedTo || payload.userId : payload.userId,
+      status: status || 'pending',
+      approval_status: 'pending',
+      task_type: taskType,
+      quantity: normalizedQuantity,
+      estimated_hours: estimatedHours,
+      due_date: dueDate,
+      created_by: payload.userId,
+    }
+
+    let { data: task, error } = await supabase
       .from('tasks')
-      .insert([
-        {
-          project_id: projectId,
-          board_id: boardId || null,
-          title,
-          description,
-          assigned_to: currentRole === 'admin' ? assignedTo || payload.userId : payload.userId,
-          status: status || 'pending',
-          task_type: taskType,
-          quantity: normalizedQuantity,
-          estimated_hours: estimatedHours,
-          due_date: dueDate,
-          created_by: payload.userId,
-        },
-      ])
+      .insert([insertPayload])
       .select()
       .single()
+
+    if (error?.code === '42703' && String(error.message || '').includes('approval_status')) {
+      const { approval_status, ...legacyInsertPayload } = insertPayload
+      const fallback = await supabase
+        .from('tasks')
+        .insert([legacyInsertPayload])
+        .select()
+        .single()
+
+      task = fallback.data
+        ? {
+            ...fallback.data,
+            approval_status: 'pending',
+          }
+        : fallback.data
+      error = fallback.error
+    }
 
     if (error) {
       console.error('Create task insert failed:', error)
